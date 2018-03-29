@@ -1,6 +1,7 @@
 package nachos.threads;
 
 import nachos.machine.*;
+import java.util.LinkedList;
 
 /**
  * An implementation of condition variables that disables interrupt()s for
@@ -31,11 +32,16 @@ public class Condition2 {
      * automatically reacquire the lock before <tt>sleep()</tt> returns.
      */
     public void sleep() {
-	Lib.assertTrue(conditionLock.isHeldByCurrentThread());
+		Lib.assertTrue(conditionLock.isHeldByCurrentThread());
 
-	conditionLock.release();
+		boolean intStatus = Machine.interrupt().disable();
 
-	conditionLock.acquire();
+		conditionLock.release();
+		waitQueue.waitForAccess(KThread.currentThread());
+		KThread.sleep();
+		conditionLock.acquire();
+
+		Machine.interrupt().restore(intStatus);
     }
 
     /**
@@ -43,7 +49,14 @@ public class Condition2 {
      * current thread must hold the associated lock.
      */
     public void wake() {
-	Lib.assertTrue(conditionLock.isHeldByCurrentThread());
+		Lib.assertTrue(conditionLock.isHeldByCurrentThread());
+		
+		boolean intStatus = Machine.interrupt().disable();
+
+		if (waitQueue.nextThread() != null)
+			waitQueue.nextThread().ready();
+
+		Machine.interrupt().restore(intStatus);
     }
 
     /**
@@ -51,8 +64,16 @@ public class Condition2 {
      * thread must hold the associated lock.
      */
     public void wakeAll() {
-	Lib.assertTrue(conditionLock.isHeldByCurrentThread());
+    	Lib.assertTrue(conditionLock.isHeldByCurrentThread());
+
+		boolean intStatus = Machine.interrupt().disable();
+
+		while (waitQueue.nextThread() != null)
+			waitQueue.nextThread().ready();
+
+		Machine.interrupt().restore(intStatus);
     }
 
     private Lock conditionLock;
+    private ThreadQueue waitQueue = ThreadedKernel.scheduler.newThreadQueue(false);
 }

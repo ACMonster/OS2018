@@ -401,8 +401,10 @@ public class KThread {
 	private int which;
     }
 
+    /*
+		Test for join(): generate 10 threads, each of which waits for the previous one to terminate
+    */
     private static class JoinTest implements Runnable {
-
         private int which;
 
         JoinTest (int which) {
@@ -410,15 +412,57 @@ public class KThread {
         }
 
         public void run() {
-            if (which == 1) {
-                KThread child = new KThread(new JoinTest(2)).setName("Join Test 2");
+            if (which < 10) {
+                KThread child = new KThread(new JoinTest(which + 1));
                 child.fork();
                 child.join();
-                System.out.println("Join Test 1 terminates.");
-            } else {
+            }
+            for (int i = 0; i < 10; i++)
+                yield();
+            System.out.println("Join Test " + which + " terminates.");
+        }
+    }
+
+    private static class Condition2Test implements Runnable {
+        private int which;
+        private Lock lock;
+        private Condition2 cond;
+        private Integer turn;
+
+        Condition2Test (int which, Lock lock, Condition2 cond, Integer turn) {
+            this.which = which;
+            this.lock = lock;
+            this.cond = cond;
+            this.turn = turn;
+        }
+
+        public void run() {
+            if (which == 0) {
+                KThread child[] = new KThread[10];
+                turn = new Integer(-1);
+                lock = new Lock();
+                cond = new Condition2(lock);
+                for (int i = 0; i < 10; i++) {
+                	child[i] = new KThread(new Condition2Test(i + 1, lock, cond, turn));
+                	child[i].fork();
+                }
                 for (int i = 0; i < 10; i++)
-                    yield();
-                System.out.println("Join Test 2 terminates.");
+                	child[i].join();
+                System.out.println("Condition2 Test 0 finishes.");
+            } else {
+            	for (int i = 0; i < 100 - which * which; i++)
+            		yield();
+            	lock.acquire();
+            	while (turn != -1)
+            		cond.sleep();
+            	System.out.println("Condition2 Test " + which + " takes turn.");
+            	turn = which;
+            	for (int i = 0; i < which * which; i++)
+            		yield();
+            	turn = -1;
+            	System.out.println("Condition2 Test " + which + " finishes.");
+            	cond.wake();
+            	lock.release();
             }
         }
     }
@@ -429,7 +473,14 @@ public class KThread {
     public static void selfTest() {
 	Lib.debug(dbgThread, "Enter KThread.selfTest");
 	
-    new KThread(new JoinTest(1)).setName("Join Test 1").fork();
+	KThread joinTest = new KThread(new JoinTest(1));
+	joinTest.fork();
+	joinTest.join();
+
+	KThread condTest = new KThread(new Condition2Test(0, null, null, null));
+	condTest.fork();
+	condTest.join();
+
 	new KThread(new PingTest(1)).setName("forked thread").fork();
 	new PingTest(0).run();
     }
