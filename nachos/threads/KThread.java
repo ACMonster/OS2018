@@ -483,12 +483,42 @@ public class KThread {
     	}
     }
 
+    private static class CommunicatorTest implements Runnable {
+    	private int which;
+    	private Communicator comm;
+
+    	CommunicatorTest(int which, Communicator comm) {
+    		this.which = which;
+    		this.comm = comm;
+    	}
+
+    	public void run() {
+    		if (which == 0) {
+    			comm = new Communicator();
+    			for (int i = 1; i <= 10; i++)
+    				new KThread(new CommunicatorTest(i, comm)).fork();
+    			for (int i = 1; i <= 12; i++)
+    				new KThread(new CommunicatorTest(-i, comm)).fork();
+    		} else if (which > 0) {
+    			for (int i = 0; i < which * which; i++)
+    				yield();
+    			comm.speak(which * which);
+    			System.out.println("Speaker " + which + " finishes.");
+    		} else {
+    			int msg = comm.listen();
+    			System.out.println("Listener " + which + " finishes with " + msg + ".");
+    		}
+    	}
+    }
+
     /**
      * Tests whether this module is working.
      */
     public static void selfTest() {
 	Lib.debug(dbgThread, "Enter KThread.selfTest");
 	
+	new KThread(new CommunicatorTest(0, null)).fork();
+
 	new KThread(new AlarmTest(1, 10000)).fork();
 	new KThread(new AlarmTest(2, 5000)).fork();
 
