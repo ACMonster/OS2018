@@ -467,12 +467,31 @@ public class KThread {
         }
     }
 
+    private static class AlarmTest implements Runnable {
+    	private int which;
+    	private long waitTime;
+
+    	AlarmTest(int which, long waitTime) {
+    		this.which = which;
+    		this.waitTime = waitTime;
+    	}
+
+    	public void run() {
+    		System.out.println("Alarm Test " + which + " starts.");
+    		ThreadedKernel.alarm.waitUntil(waitTime);
+    		System.out.println("Alarm Test " + which + " finishes.");
+    	}
+    }
+
     /**
      * Tests whether this module is working.
      */
     public static void selfTest() {
 	Lib.debug(dbgThread, "Enter KThread.selfTest");
 	
+	new KThread(new AlarmTest(1, 10000)).fork();
+	new KThread(new AlarmTest(2, 5000)).fork();
+
 	KThread joinTest = new KThread(new JoinTest(1));
 	joinTest.fork();
 	joinTest.join();
