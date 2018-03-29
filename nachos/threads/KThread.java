@@ -193,6 +193,8 @@ public class KThread {
 
 
 	currentThread.status = statusFinished;
+
+    currentThread.joinSemaphore.V();
 	
 	sleep();
     }
@@ -276,6 +278,8 @@ public class KThread {
 	Lib.debug(dbgThread, "Joining to thread: " + toString());
 
 	Lib.assertTrue(this != currentThread);
+
+    joinSemaphore.P();
 
     }
 
@@ -397,12 +401,35 @@ public class KThread {
 	private int which;
     }
 
+    private static class JoinTest implements Runnable {
+
+        private int which;
+
+        JoinTest (int which) {
+            this.which = which;
+        }
+
+        public void run() {
+            if (which == 1) {
+                KThread child = new KThread(new JoinTest(2)).setName("Join Test 2");
+                child.fork();
+                child.join();
+                System.out.println("Join Test 1 terminates.");
+            } else {
+                for (int i = 0; i < 10; i++)
+                    yield();
+                System.out.println("Join Test 2 terminates.");
+            }
+        }
+    }
+
     /**
      * Tests whether this module is working.
      */
     public static void selfTest() {
 	Lib.debug(dbgThread, "Enter KThread.selfTest");
 	
+    new KThread(new JoinTest(1)).setName("Join Test 1").fork();
 	new KThread(new PingTest(1)).setName("forked thread").fork();
 	new PingTest(0).run();
     }
@@ -444,4 +471,6 @@ public class KThread {
     private static KThread currentThread = null;
     private static KThread toBeDestroyed = null;
     private static KThread idleThread = null;
+
+    public Semaphore joinSemaphore = new Semaphore(0);
 }
