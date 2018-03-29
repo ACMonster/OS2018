@@ -53,8 +53,9 @@ public class Condition2 {
 		
 		boolean intStatus = Machine.interrupt().disable();
 
-		if (waitQueue.nextThread() != null)
-			waitQueue.nextThread().ready();
+        KThread nextThread = waitQueue.nextThread();
+        if (nextThread != null)
+            nextThread.ready();
 
 		Machine.interrupt().restore(intStatus);
     }
@@ -68,8 +69,11 @@ public class Condition2 {
 
 		boolean intStatus = Machine.interrupt().disable();
 
-		while (waitQueue.nextThread() != null)
-			waitQueue.nextThread().ready();
+        KThread nextThread = waitQueue.nextThread();
+		while (nextThread != null) {
+			nextThread.ready();
+            nextThread = waitQueue.nextThread();
+        }
 
 		Machine.interrupt().restore(intStatus);
     }
