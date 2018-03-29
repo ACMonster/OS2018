@@ -494,11 +494,21 @@ public class KThread {
 
     	public void run() {
     		if (which == 0) {
+    			int numSpeaker = 10;
+    			int numListener = 12;
     			comm = new Communicator();
-    			for (int i = 1; i <= 10; i++)
-    				new KThread(new CommunicatorTest(i, comm)).fork();
-    			for (int i = 1; i <= 12; i++)
-    				new KThread(new CommunicatorTest(-i, comm)).fork();
+    			KThread[] speaker = new KThread[numSpeaker];
+    			KThread[] listener = new KThread[numListener];
+    			for (int i = 0; i < numSpeaker; i++)
+    				speaker[i] = new KThread(new CommunicatorTest(i + 1, comm));
+    			for (int i = 0; i < numListener; i++)
+    				listener[i] = new KThread(new CommunicatorTest(-(i + 1), comm));
+    			for (int i = 0; i < numListener; i++)
+    				listener[i].fork();
+    			for (int i = 0; i < numSpeaker; i++)
+    				speaker[i].fork();
+    			for (int i = 0; i < numSpeaker; i++)
+    				speaker[i].join();
     		} else if (which > 0) {
     			for (int i = 0; i < which * which; i++)
     				yield();
@@ -517,10 +527,12 @@ public class KThread {
     public static void selfTest() {
 	Lib.debug(dbgThread, "Enter KThread.selfTest");
 	
-	new KThread(new CommunicatorTest(0, null)).fork();
-
 	new KThread(new AlarmTest(1, 10000)).fork();
 	new KThread(new AlarmTest(2, 5000)).fork();
+
+	KThread communicatorTest = new KThread(new CommunicatorTest(0, null));
+	communicatorTest.fork();
+	communicatorTest.join();
 
 	KThread joinTest = new KThread(new JoinTest(1));
 	joinTest.fork();

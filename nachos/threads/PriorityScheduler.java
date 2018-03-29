@@ -2,6 +2,7 @@ package nachos.threads;
 
 import nachos.machine.*;
 
+import java.util.LinkedList;
 import java.util.TreeSet;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -128,6 +129,9 @@ public class PriorityScheduler extends Scheduler {
     protected class PriorityQueue extends ThreadQueue {
 	PriorityQueue(boolean transferPriority) {
 	    this.transferPriority = transferPriority;
+	    threadList = new LinkedList<ThreadState>();
+	    timer = 0;
+	    currentThread = null;
 	}
 
 	public void waitForAccess(KThread thread) {
@@ -142,8 +146,11 @@ public class PriorityScheduler extends Scheduler {
 
 	public KThread nextThread() {
 	    Lib.assertTrue(Machine.interrupt().disabled());
-	    // implement me
-	    return null;
+	    ThreadState next = pickNextThread();
+	    if (next == null)
+	    	return null;
+	    acquire(next.thread);
+	    return next.thread;
 	}
 
 	/**
@@ -154,8 +161,21 @@ public class PriorityScheduler extends Scheduler {
 	 *		return.
 	 */
 	protected ThreadState pickNextThread() {
-	    // implement me
-	    return null;
+	    int bestPriority = -1;
+	    long bestTime = -1;
+	    ThreadState bestThread = null;
+	    for (ThreadState s: threadList) {
+	    	int thisPriority = s.getPriority();
+	    	if (transferPriority)
+	    		thisPriority = s.getEffectivePriority();
+	    	long thisTime = s.getTimeStamp();
+	    	if (thisPriority > bestPriority || (thisPriority == bestPriority && thisTime > bestTime)) {
+	    		bestPriority = thisPriority;
+	    		bestTime = thisTime;
+	    		bestThread = s;
+	    	}
+	    }
+	    return bestThread;
 	}
 	
 	public void print() {
@@ -163,11 +183,50 @@ public class PriorityScheduler extends Scheduler {
 	    // implement me (if you want)
 	}
 
+	public void enqueue(ThreadState s) {
+		threadList.add(s);
+	}
+
+	public void dequeue(ThreadState s) {
+		threadList.remove(s);
+	}
+
+	public long getCurrentTime() {
+		return timer++;
+	}
+
+	public ThreadState getCurrentThread() {
+		return currentThread;
+	}
+
+	public void setCurrentThread(ThreadState currentThread) {
+		this.currentThread = currentThread;
+	}
+
+	public void addWait(ThreadState s, ThreadState t) {
+		s.waiting.add(t);
+		t.waited.remove(s);
+		t.invalidate();
+	}
+
+	public void removeWait(ThreadState s, ThreadState t) {
+		s.waiting.remove(t);
+		t.waited.remove(s);
+		t.invalidate();
+	}
+
+	public LinkedList<ThreadState> getThreadList() {
+		return threadList;
+	}
+
 	/**
 	 * <tt>true</tt> if this queue should transfer priority from waiting
 	 * threads to the owning thread.
 	 */
 	public boolean transferPriority;
+	private LinkedList<ThreadState> threadList;
+	private long timer;
+	private ThreadState currentThread;
     }
 
     /**
@@ -188,6 +247,11 @@ public class PriorityScheduler extends Scheduler {
 	    this.thread = thread;
 	    
 	    setPriority(priorityDefault);
+	    cachedPriority = priorityDefault;
+	    cacheValid = true;
+
+	    waiting = new LinkedList<ThreadState>();
+	    waited = new LinkedList<ThreadState>();
 	}
 
 	/**
@@ -205,8 +269,18 @@ public class PriorityScheduler extends Scheduler {
 	 * @return	the effective priority of the associated thread.
 	 */
 	public int getEffectivePriority() {
-	    // implement me
-	    return priority;
+		if (cacheValid)
+			return cachedPriority;
+
+	    cachedPriority = priority;
+	    for (ThreadState s: waited) {
+	    	int thisPriority = s.getEffectivePriority();
+	    	if (thisPriority > cachedPriority)
+	    		cachedPriority = thisPriority;
+	    }
+
+	    cacheValid = true;
+	    return cachedPriority;
 	}
 
 	/**
@@ -220,7 +294,23 @@ public class PriorityScheduler extends Scheduler {
 	    
 	    this.priority = priority;
 	    
-	    // implement me
+	    invalidate();
+	}
+
+	public void invalidate() {
+		if (!cacheValid)
+			return;
+		cacheValid = false;
+		for (ThreadState s: waiting)
+			s.invalidate();
+	}
+
+	public long getTimeStamp() {
+		return timeStamp;
+	}
+
+	public void setTimeStamp(long timeStamp) {
+		this.timeStamp = timeStamp;
 	}
 
 	/**
@@ -236,7 +326,11 @@ public class PriorityScheduler extends Scheduler {
 	 * @see	nachos.threads.ThreadQueue#waitForAccess
 	 */
 	public void waitForAccess(PriorityQueue waitQueue) {
-	    // implement me
+	    setTimeStamp(waitQueue.getCurrentTime());
+	    ThreadState parent = waitQueue.getCurrentThread();
+	    if (parent != null)
+	    	waitQueue.addWait(this, parent);
+	    waitQueue.enqueue(this);
 	}
 
 	/**
@@ -250,12 +344,25 @@ public class PriorityScheduler extends Scheduler {
 	 * @see	nachos.threads.ThreadQueue#nextThread
 	 */
 	public void acquire(PriorityQueue waitQueue) {
-	    // implement me
+		LinkedList<ThreadState> waitingThreads = waitQueue.getThreadList();
+		ThreadState parent = waitQueue.getCurrentThread();
+		if (parent != null)
+			for (ThreadState s: waitingThreads)
+				waitQueue.removeWait(s, parent);
+	    waitQueue.dequeue(this);
+	    waitQueue.setCurrentThread(this);
+		for (ThreadState s: waitingThreads)
+			waitQueue.addWait(s, this);
 	}	
 
 	/** The thread with which this object is associated. */	   
 	protected KThread thread;
 	/** The priority of the associated thread. */
 	protected int priority;
+	protected long timeStamp;
+	protected int cachedPriority;
+	protected boolean cacheValid;
+	protected LinkedList<ThreadState> waiting;
+	protected LinkedList<ThreadState> waited;
     }
 }
