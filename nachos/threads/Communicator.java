@@ -15,9 +15,9 @@ public class Communicator {
      */
     public Communicator() {
     	lock = new Lock();
-    	leaderSpeaker = new Condition(lock);
-    	leaderListener = new Condition(lock);
-    	complete = new Condition(lock);
+    	leaderSpeaker = new Condition2(lock);
+    	leaderListener = new Condition2(lock);
+    	complete = new Condition2(lock);
     	hasLeaderSpeaker = false;
     	hasLeaderListener = false;
     }
@@ -79,9 +79,9 @@ public class Communicator {
     }
 
     private Lock lock;
-    private Condition leaderSpeaker;
-    private Condition leaderListener;
-    private Condition complete;
+    private Condition2 leaderSpeaker;
+    private Condition2 leaderListener;
+    private Condition2 complete;
     private boolean hasLeaderSpeaker;
     private boolean hasLeaderListener;
     private int word;
