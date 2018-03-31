@@ -526,7 +526,7 @@ public class KThread {
      */
     public static void selfTest() {
 	Lib.debug(dbgThread, "Enter KThread.selfTest");
-	
+	/*
 	new KThread(new AlarmTest(1, 10000)).fork();
 	new KThread(new AlarmTest(2, 5000)).fork();
 
@@ -544,6 +544,9 @@ public class KThread {
 
 	new KThread(new PingTest(1)).setName("forked thread").fork();
 	new PingTest(0).run();
+    */
+
+    new Boat().selfTest();
     }
 
     private static final char dbgThread = 't';

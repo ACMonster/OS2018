@@ -4,13 +4,23 @@ import nachos.ag.BoatGrader;
 public class Boat
 {
     static BoatGrader bg;
-    
+
+    static boolean hasLeader1;
+    static boolean hasLeader2;
+    static Lock lock;
+    static Condition cond1;
+    static Condition cond2;
+    static Condition condP;
+    static Condition condIdle;
+    static Communicator comm;
+    static int numRider = 0;
+
     public static void selfTest()
     {
 	BoatGrader b = new BoatGrader();
 	
 	System.out.println("\n ***Testing Boats with only 2 children***");
-	begin(0, 2, b);
+	begin(10, 20, b);
 
 //	System.out.println("\n ***Testing Boats with 2 children, 1 adult***");
 //  	begin(1, 2, b);
@@ -30,15 +40,74 @@ public class Boat
 	// Create threads here. See section 3.4 of the Nachos for Java
 	// Walkthrough linked from the projects page.
 
-	Runnable r = new Runnable() {
-	    public void run() {
-                SampleItinerary();
-            }
-        };
-        KThread t = new KThread(r);
-        t.setName("Sample Boat Thread");
-        t.fork();
+	hasLeader1 = hasLeader2 = false;
+	lock = new Lock();
+	cond1 = new Condition(lock);
+	cond2 = new Condition(lock);
+	condP = new Condition(lock);
+	condIdle = new Condition(lock);
+	comm = new Communicator();
 
+	Runnable adult = new Runnable() {
+		public void run() {
+			AdultItinerary();
+		}
+	};
+	
+	Runnable child = new Runnable() {
+		public void run() {
+			ChildItinerary();
+		}
+	};
+
+	for (int i = 0; i < children; i++)
+		new KThread(child).setName("Child " + (i + 1)).fork();
+
+	for (int i = 0; i < adults; i++)
+		new KThread(adult).setName("Adult " + (i + 1)).fork();
+
+	while (comm.listen() != adults + children);
+    }
+
+    static void Rider(boolean isAdult) {
+    	numRider++;
+    	condIdle.wake();
+    	condP.sleep();
+    	if (isAdult)
+    		bg.AdultRowToMolokai();
+    	else
+    		bg.ChildRowToMolokai();
+    	numRider--;
+    	cond2.wake();
+    	lock.release();
+    }
+
+    static void Leader1() {
+    	int total = 2;
+    	while (true) {
+    		cond1.sleep();
+    		bg.ChildRowToMolokai();
+    		cond2.wake();
+    		cond1.sleep();
+    		while (numRider == 0) {
+    			comm.speak(total);
+    			condIdle.sleep();
+    		}
+    		total++;
+    		bg.ChildRowToOahu();
+    		condP.wake();
+    	}
+    }
+
+    static void Leader2() {
+    	while (true) {
+    		cond1.wake();
+    		cond2.sleep();
+    		bg.ChildRideToMolokai();
+    		cond1.wake();
+    		cond2.sleep();
+    		bg.ChildRowToOahu();
+    	}
     }
 
     static void AdultItinerary()
@@ -52,12 +121,23 @@ public class Boat
 	       bg.AdultRowToMolokai();
 	   indicates that an adult has rowed the boat across to Molokai
 	*/
+	   	lock.acquire();
+		Rider(true);
     }
 
     static void ChildItinerary()
     {
 	bg.initializeChild(); //Required for autograder interface. Must be the first thing called.
 	//DO NOT PUT ANYTHING ABOVE THIS LINE. 
+		lock.acquire();
+		if (!hasLeader1) {
+			hasLeader1 = true;
+			Leader1();
+		} else if (!hasLeader2) {
+			hasLeader2 = true;
+			Leader2();
+		} else
+			Rider(false);
     }
 
     static void SampleItinerary()
