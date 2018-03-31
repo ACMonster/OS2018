@@ -74,8 +74,9 @@ public class Communicator {
     		leaderListener.wake();
     	}
 
+    	int msg = word;
     	lock.release();
-		return word;
+		return msg;
     }
 
     private Lock lock;
