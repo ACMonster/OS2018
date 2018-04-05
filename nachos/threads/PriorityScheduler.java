@@ -169,7 +169,7 @@ public class PriorityScheduler extends Scheduler {
 	    	if (transferPriority)
 	    		thisPriority = s.getEffectivePriority();
 	    	long thisTime = s.getTimeStamp();
-	    	if (thisPriority > bestPriority || (thisPriority == bestPriority && thisTime > bestTime)) {
+	    	if (thisPriority > bestPriority || (thisPriority == bestPriority && thisTime < bestTime)) {
 	    		bestPriority = thisPriority;
 	    		bestTime = thisTime;
 	    		bestThread = s;
