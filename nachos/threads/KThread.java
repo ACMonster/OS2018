@@ -194,7 +194,7 @@ public class KThread {
 
 	currentThread.status = statusFinished;
 
-    currentThread.joinSemaphore.V();
+    currentThread.joinSem.V();
 	
 	sleep();
     }
@@ -279,7 +279,10 @@ public class KThread {
 
 	Lib.assertTrue(this != currentThread);
 
-    joinSemaphore.P();
+    if (this.status == statusFinished)
+        return;
+
+    joinSem.P();
 
     }
 
@@ -521,11 +524,61 @@ public class KThread {
     	}
     }
 
+    private static class PriorityTest implements Runnable {
+        private int which;
+        private Lock lock;
+
+        PriorityTest(int which, Lock lock) {
+            this.which = which;
+            this.lock = lock;
+        }
+
+        public void run() {
+            if (which == 0) {
+                lock = new Lock();
+                int total = 8;
+                KThread[] child = new KThread[total];
+                boolean intStatus = Machine.interrupt().disable();
+                ThreadedKernel.scheduler.setPriority(KThread.currentThread(), 0);
+                for (int i = 0; i < total; i++) {
+                    child[i] = new KThread(new PriorityTest(i + 1, lock));
+                    ThreadedKernel.scheduler.setPriority(child[i], (i + 1) % 7 + 1);
+                }
+                Machine.interrupt().restore(intStatus);
+                lock.acquire();
+                intStatus = Machine.interrupt().disable();
+                System.out.println("Effective priority = " + ThreadedKernel.scheduler.getEffectivePriority(KThread.currentThread()));
+                Machine.interrupt().restore(intStatus);
+                for (int i = 0; i < total; i++)
+                    child[i].fork();
+                for (int i = 0; i < 1000; i++)
+                    yield();
+                intStatus = Machine.interrupt().disable();
+                System.out.println("Effective priority = " + ThreadedKernel.scheduler.getEffectivePriority(KThread.currentThread()));
+                Machine.interrupt().restore(intStatus);
+                lock.release();
+                for (int i = 0; i < total; i++)
+                    child[i].join();
+                System.out.println("Priority test finishes.");
+            } else {
+                lock.acquire();
+                for (int i = 0; i < 1000 - which * which; i++)
+                    yield();
+                lock.release();
+                System.out.println("Priority test " + which + " finishes.");
+            }
+        }
+    }
+
     /**
      * Tests whether this module is working.
      */
     public static void selfTest() {
 	Lib.debug(dbgThread, "Enter KThread.selfTest");
+
+    KThread priorityTest = new KThread(new PriorityTest(0, null));
+    priorityTest.fork();
+    priorityTest.join();
 	/*
 	new KThread(new AlarmTest(1, 10000)).fork();
 	new KThread(new AlarmTest(2, 5000)).fork();
@@ -544,9 +597,11 @@ public class KThread {
 
 	new KThread(new PingTest(1)).setName("forked thread").fork();
 	new PingTest(0).run();
-    */
 
     new Boat().selfTest();
+
+    */
+
     }
 
     private static final char dbgThread = 't';
@@ -587,5 +642,5 @@ public class KThread {
     private static KThread toBeDestroyed = null;
     private static KThread idleThread = null;
 
-    public Semaphore joinSemaphore = new Semaphore(0);
+    public Semaphore joinSem = new Semaphore(0);
 }

@@ -205,7 +205,7 @@ public class PriorityScheduler extends Scheduler {
 
 	public void addWait(ThreadState s, ThreadState t) {
 		s.waiting.add(t);
-		t.waited.remove(s);
+		t.waited.add(s);
 		t.invalidate();
 	}
 
@@ -272,6 +272,7 @@ public class PriorityScheduler extends Scheduler {
 		if (cacheValid)
 			return cachedPriority;
 
+	    cacheValid = true;
 	    cachedPriority = priority;
 	    for (ThreadState s: waited) {
 	    	int thisPriority = s.getEffectivePriority();
@@ -279,7 +280,6 @@ public class PriorityScheduler extends Scheduler {
 	    		cachedPriority = thisPriority;
 	    }
 
-	    cacheValid = true;
 	    return cachedPriority;
 	}
 
