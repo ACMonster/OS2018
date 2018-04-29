@@ -13,13 +13,19 @@ public class Communicator {
     /**
      * Allocate a new communicator.
      */
+
+    private Lock mu;
+    private Condition2 waitingSpeakers, waitingListeners, currentSpeaker;
+    private int reg;
+    private boolean isSet, isRetrieved;
+
     public Communicator() {
-    	lock = new Lock();
-    	leaderSpeaker = new Condition2(lock);
-    	leaderListener = new Condition2(lock);
-    	complete = new Condition2(lock);
-    	hasLeaderSpeaker = false;
-    	hasLeaderListener = false;
+        mu = new Lock();
+        waitingListeners = new Condition2(mu);
+        waitingSpeakers = new Condition2(mu);
+        currentSpeaker = new Condition2(mu);
+        isSet = false;
+        isRetrieved = false;
     }
 
     /**
@@ -33,23 +39,18 @@ public class Communicator {
      * @param	word	the integer to transfer.
      */
     public void speak(int word) {
-    	lock.acquire();
-
-    	while (hasLeaderSpeaker)
-    		leaderSpeaker.sleep();
-    	hasLeaderSpeaker = true;
-
-    	this.word = word;
-    	if (hasLeaderListener)
-    		complete.wake();
-    	else {
-    		complete.sleep();
-    		hasLeaderSpeaker = hasLeaderListener = false;
-    		leaderSpeaker.wake();
-    		leaderListener.wake();
-    	}
-
-    	lock.release();
+        mu.acquire();
+        while (isSet)
+            waitingSpeakers.sleep();
+        isSet = true;
+        isRetrieved = false;
+        reg = word;
+        waitingListeners.wake();
+        while (!isRetrieved)
+            currentSpeaker.sleep();
+        isSet = false;
+        waitingSpeakers.wake();
+        mu.release();
     }
 
     /**
@@ -59,31 +60,56 @@ public class Communicator {
      * @return	the integer transferred.
      */    
     public int listen() {
-    	lock.acquire();
-
-    	while (hasLeaderListener)
-    		leaderListener.sleep();
-    	hasLeaderListener = true;
-
-    	if (hasLeaderSpeaker)
-    		complete.wake();
-    	else {
-    		complete.sleep();
-    		hasLeaderSpeaker = hasLeaderListener = false;
-    		leaderSpeaker.wake();
-    		leaderListener.wake();
-    	}
-
-    	int msg = word;
-    	lock.release();
-		return msg;
+        mu.acquire();
+        while (!isSet || isRetrieved)
+            waitingListeners.sleep();
+        int ret = reg;
+        isRetrieved = true;
+        currentSpeaker.wake();
+        mu.release();
+        return ret;
     }
 
-    private Lock lock;
-    private Condition2 leaderSpeaker;
-    private Condition2 leaderListener;
-    private Condition2 complete;
-    private boolean hasLeaderSpeaker;
-    private boolean hasLeaderListener;
-    private int word;
+    public static void selfTest() {
+        System.out.println();
+        final Communicator c = new Communicator();
+        class CommunicatorTest implements Runnable {
+            boolean isSpeaker;
+            int word;
+            int id;
+            long sleep;
+            CommunicatorTest(boolean isSpeaker, int word, int id, long sleep) {
+                this.isSpeaker = isSpeaker;
+                this.word = word;
+                this.id = id;
+                this.sleep = sleep;
+            }
+
+            @Override
+            public void run() {
+                if (isSpeaker) {
+                    ThreadedKernel.alarm.waitUntil(sleep);
+                    System.out.println("*** thread " + id + " speaks " + word);
+                    c.speak(word);
+                }
+                else {
+                    ThreadedKernel.alarm.waitUntil(sleep);
+                    word = c.listen();
+                    System.out.println("*** thread " + id + " hears " + word);
+                }
+            }
+        }
+        KThread[] kt = new KThread[8];
+        for(int i = 0; i < 4; i++) {
+            kt[i] = new KThread(new CommunicatorTest(true, i, 40 + i, 200 + i * 700));
+            kt[i].fork();
+        }
+        for(int i = 4; i < 8; i++) {
+            kt[i] = new KThread(new CommunicatorTest(false, 0, 40 + i, 2000 - i * 100));
+            kt[i].fork();
+        }
+        KThread.yield();
+        for(int i = 0; i < 8; i++)
+            kt[i].join();
+    }
 }

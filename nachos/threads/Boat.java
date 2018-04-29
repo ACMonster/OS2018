@@ -1,26 +1,18 @@
 package nachos.threads;
 import nachos.ag.BoatGrader;
 
+import java.util.LinkedList;
+
 public class Boat
 {
     static BoatGrader bg;
-
-    static boolean hasLeader1;
-    static boolean hasLeader2;
-    static Lock lock;
-    static Condition cond1;
-    static Condition cond2;
-    static Condition condP;
-    static Condition condIdle;
-    static Communicator comm;
-    static int numRider = 0;
-
+    
     public static void selfTest()
     {
 	BoatGrader b = new BoatGrader();
 	
 	System.out.println("\n ***Testing Boats with only 2 children***");
-	begin(10, 20, b);
+	begin(3, 5, b);
 
 //	System.out.println("\n ***Testing Boats with 2 children, 1 adult***");
 //  	begin(1, 2, b);
@@ -29,6 +21,18 @@ public class Boat
 //  	begin(3, 3, b);
     }
 
+    private static boolean boatAtO;
+    private static boolean wantsPassenger;
+    private static int numChildrenAtO;
+    private static int numChildrenAtM;
+    private static int numAdultsAtO;
+    private static int numAdultsAtM;
+    private static Lock mu;
+    private static Condition2 cvChildrenAtO;
+    private static Condition2 cvChildrenAtM;
+    private static Condition2 cvAdultsAtO;
+    private static Condition2 cvWantsPassenger;
+
     public static void begin( int adults, int children, BoatGrader b )
     {
 	// Store the externally generated autograder in a class
@@ -36,78 +40,46 @@ public class Boat
 	bg = b;
 
 	// Instantiate global variables here
-	
+
+    boatAtO = true;
+    wantsPassenger = false;
+    numChildrenAtO = children;
+    numChildrenAtM = 0;
+    numAdultsAtO = adults;
+    numAdultsAtM = 0;
+    mu = new Lock();
+    cvChildrenAtO = new Condition2(mu);
+    cvChildrenAtM = new Condition2(mu);
+	cvAdultsAtO = new Condition2(mu);
+	cvWantsPassenger = new Condition2(mu);
+
 	// Create threads here. See section 3.4 of the Nachos for Java
 	// Walkthrough linked from the projects page.
 
-	hasLeader1 = hasLeader2 = false;
-	lock = new Lock();
-	cond1 = new Condition(lock);
-	cond2 = new Condition(lock);
-	condP = new Condition(lock);
-	condIdle = new Condition(lock);
-	comm = new Communicator();
-
-	Runnable adult = new Runnable() {
-		public void run() {
-			AdultItinerary();
-		}
-	};
-	
-	Runnable child = new Runnable() {
-		public void run() {
-			ChildItinerary();
-		}
-	};
-
-	for (int i = 0; i < children; i++)
-		new KThread(child).setName("Child " + (i + 1)).fork();
-
-	for (int i = 0; i < adults; i++)
-		new KThread(adult).setName("Adult " + (i + 1)).fork();
-
-	while (comm.listen() != adults + children);
+        LinkedList<KThread> list = new LinkedList<KThread>();
+	for (int i=0; i < adults; i++) {
+        KThread kt = new KThread(new Runnable() {
+            @Override
+            public void run() {
+                AdultItinerary();
+            }
+        });
+        kt.fork();
+        list.add(kt);
     }
-
-    static void Rider(boolean isAdult) {
-    	numRider++;
-    	condIdle.wake();
-    	condP.sleep();
-    	if (isAdult)
-    		bg.AdultRowToMolokai();
-    	else
-    		bg.ChildRowToMolokai();
-    	numRider--;
-    	cond2.wake();
-    	lock.release();
+	for (int i=0; i < children; i++) {
+        KThread kt = new KThread(new Runnable() {
+            @Override
+            public void run() {
+                ChildItinerary();
+            }
+        });
+        kt.fork();
+        list.add(kt);
     }
+    for (KThread kt : list)
+        kt.join();
 
-    static void Leader1() {
-    	int total = 2;
-    	while (true) {
-    		cond1.sleep();
-    		bg.ChildRowToMolokai();
-    		cond2.wake();
-    		cond1.sleep();
-    		while (numRider == 0) {
-    			comm.speak(total);
-    			condIdle.sleep();
-    		}
-    		total++;
-    		bg.ChildRowToOahu();
-    		condP.wake();
-    	}
-    }
-
-    static void Leader2() {
-    	while (true) {
-    		cond1.wake();
-    		cond2.sleep();
-    		bg.ChildRideToMolokai();
-    		cond1.wake();
-    		cond2.sleep();
-    		bg.ChildRowToOahu();
-    	}
     }
 
     static void AdultItinerary()
@@ -121,23 +93,97 @@ public class Boat
 	       bg.AdultRowToMolokai();
 	   indicates that an adult has rowed the boat across to Molokai
 	*/
-	   	lock.acquire();
-		Rider(true);
+
+	mu.acquire();
+
+	while (!(numChildrenAtM > 0 && boatAtO))
+        cvAdultsAtO.sleep();
+	bg.AdultRowToMolokai();
+    boatAtO = false;
+    numAdultsAtO --;
+    numAdultsAtM ++;
+    if (numAdultsAtO + numChildrenAtO > 0)
+        cvChildrenAtM.wake();
+
+	mu.release();
     }
 
     static void ChildItinerary()
     {
 	bg.initializeChild(); //Required for autograder interface. Must be the first thing called.
-	//DO NOT PUT ANYTHING ABOVE THIS LINE. 
-		lock.acquire();
-		if (!hasLeader1) {
-			hasLeader1 = true;
-			Leader1();
-		} else if (!hasLeader2) {
-			hasLeader2 = true;
-			Leader2();
-		} else
-			Rider(false);
+	//DO NOT PUT ANYTHING ABOVE THIS LINE.
+    boolean thisAtO = true;
+    mu.acquire();
+
+    for(;;) {
+        if (numAdultsAtO + numChildrenAtO == 0) {
+            cvChildrenAtM.wakeAll();
+            cvAdultsAtO.wakeAll();
+            cvChildrenAtO.wakeAll();
+            cvWantsPassenger.wakeAll();
+            break;
+        }
+        if (!boatAtO)
+            if (!thisAtO) {
+                bg.ChildRowToOahu();
+                thisAtO = true;
+                numChildrenAtM --;
+                numChildrenAtO ++;
+                boatAtO = true;
+                if (numAdultsAtO > 0 && numChildrenAtM > 0) {
+                    cvAdultsAtO.wake();
+                    cvChildrenAtO.sleep();
+                }
+            }
+            else {
+                cvChildrenAtM.wake();
+                cvChildrenAtO.sleep();
+            }
+        else //boat at O
+            if (!thisAtO)
+                if (numAdultsAtO > 0) {
+                    cvAdultsAtO.wake();
+                    cvChildrenAtM.sleep();
+                }
+                else {
+                    cvChildrenAtO.wake();
+                    cvChildrenAtM.sleep();
+                }
+            else // this at O
+                if (numChildrenAtM > 0 && numAdultsAtO > 0) {
+                    cvAdultsAtO.wake();
+                    cvChildrenAtO.sleep();
+                }
+                else
+                if (!wantsPassenger)
+                    if (numChildrenAtO == 1) {
+                        bg.ChildRowToMolokai();
+                        boatAtO = false;
+                        thisAtO = false;
+                        numChildrenAtO --;
+                        numChildrenAtM ++;
+                    }
+                    else {
+                        wantsPassenger = true;
+                        bg.ChildRowToMolokai();
+                        cvChildrenAtO.wake();
+                        thisAtO = false;
+                        while (wantsPassenger)
+                            cvWantsPassenger.sleep();
+                   }
+                else {
+                    wantsPassenger = false;
+                    bg.ChildRideToMolokai();
+                    thisAtO = false;
+                    boatAtO = false;
+                    numChildrenAtO -= 2;
+                    numChildrenAtM += 2;
+                    cvWantsPassenger.wake();
+                    cvChildrenAtM.sleep();
+                }
+    }
+
+    mu.release();
     }
 
     static void SampleItinerary()

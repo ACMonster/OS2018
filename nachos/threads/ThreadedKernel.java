@@ -34,7 +34,7 @@ public class ThreadedKernel extends Kernel {
 	// start threading
 	new KThread(null);
 
-	alarm  = new Alarm();
+	alarm  = Alarm.newAlarm();
 
 	Machine.interrupt().enable();
     }
@@ -47,11 +47,17 @@ public class ThreadedKernel extends Kernel {
      */	
     public void selfTest() {
 	KThread.selfTest();
+	KThread.joinTest();
+	//Condition2.selfTest();
+	Alarm.selfTest();
+	Communicator.selfTest();
+	LotteryScheduler.selfTest();
 	Semaphore.selfTest();
 	SynchList.selfTest();
 	if (Machine.bank() != null) {
 	    ElevatorBank.selfTest();
 	}
+	Boat.selfTest();
     }
     
     /**

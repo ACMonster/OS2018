@@ -1,6 +1,7 @@
 package nachos.threads;
 
 import nachos.machine.*;
+
 import java.util.LinkedList;
 
 /**
@@ -21,8 +22,12 @@ public class Condition2 {
      *				lock whenever it uses <tt>sleep()</tt>,
      *				<tt>wake()</tt>, or <tt>wakeAll()</tt>.
      */
+
+    private LinkedList<KThread> waitList;
+
     public Condition2(Lock conditionLock) {
-	this.conditionLock = conditionLock;
+        this.conditionLock = conditionLock;
+        waitList = new LinkedList<KThread>();
     }
 
     /**
@@ -32,16 +37,17 @@ public class Condition2 {
      * automatically reacquire the lock before <tt>sleep()</tt> returns.
      */
     public void sleep() {
-		Lib.assertTrue(conditionLock.isHeldByCurrentThread());
+	Lib.assertTrue(conditionLock.isHeldByCurrentThread());
 
-		boolean intStatus = Machine.interrupt().disable();
+	boolean intStatus = Machine.interrupt().disable();
 
-		conditionLock.release();
-		waitQueue.waitForAccess(KThread.currentThread());
-		KThread.sleep();
-		conditionLock.acquire();
+    waitList.add(KThread.currentThread());
 
-		Machine.interrupt().restore(intStatus);
+	conditionLock.release();
+    KThread.sleep();
+	conditionLock.acquire();
+
+	Machine.interrupt().restore(intStatus);
     }
 
     /**
@@ -49,15 +55,14 @@ public class Condition2 {
      * current thread must hold the associated lock.
      */
     public void wake() {
-		Lib.assertTrue(conditionLock.isHeldByCurrentThread());
-		
-		boolean intStatus = Machine.interrupt().disable();
+        Lib.assertTrue(conditionLock.isHeldByCurrentThread());
 
-        KThread nextThread = waitQueue.nextThread();
-        if (nextThread != null)
-            nextThread.ready();
+        boolean intStatus = Machine.interrupt().disable();
 
-		Machine.interrupt().restore(intStatus);
+        if (!waitList.isEmpty())
+            waitList.removeFirst().ready();
+
+        Machine.interrupt().restore(intStatus);
     }
 
     /**
@@ -65,19 +70,54 @@ public class Condition2 {
      * thread must hold the associated lock.
      */
     public void wakeAll() {
-    	Lib.assertTrue(conditionLock.isHeldByCurrentThread());
+	    Lib.assertTrue(conditionLock.isHeldByCurrentThread());
 
-		boolean intStatus = Machine.interrupt().disable();
+        boolean intStatus = Machine.interrupt().disable();
 
-        KThread nextThread = waitQueue.nextThread();
-		while (nextThread != null) {
-			nextThread.ready();
-            nextThread = waitQueue.nextThread();
-        }
+        while (!waitList.isEmpty())
+            waitList.remove().ready();
 
-		Machine.interrupt().restore(intStatus);
+        Machine.interrupt().restore(intStatus);
     }
 
     private Lock conditionLock;
-    private ThreadQueue waitQueue = ThreadedKernel.scheduler.newThreadQueue(false);
+
+    public static void selfTest() {
+        System.out.println();
+        // Only behaves as desired when using a RoundRobinScheduler.
+        Lib.debug('t', "Enter Condition2.selfTest");
+        Lib.debug('t', "PingTest(20), PingTest(21), PingTest(22) sleep on the same condition variable");
+        final Lock mu = new Lock();
+        final Condition2 cv = new Condition2(mu);
+        class CVPingTest extends KThread.PingTest {
+            CVPingTest(int i) {
+                super(i);
+            }
+
+            @Override
+            public void run() {
+                mu.acquire();
+                cv.sleep();
+                mu.release();
+                super.run();
+            }
+        }
+        KThread kt1 = new KThread(new CVPingTest(20));
+        KThread kt2 = new KThread(new CVPingTest(21));
+        KThread kt3 = new KThread(new CVPingTest(22));
+        kt1.fork();
+        kt2.fork();
+        kt3.fork();
+        KThread.yield();
+        mu.acquire();
+        cv.wake();
+        mu.release();
+        kt1.join();
+        mu.acquire();
+        cv.wakeAll();
+        mu.release();
+        KThread.yield();
+        kt2.join();
+        kt3.join();
+    }
 }
