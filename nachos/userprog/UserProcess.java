@@ -5,6 +5,7 @@ import nachos.threads.*;
 import nachos.userprog.*;
 
 import java.io.EOFException;
+import java.util.ArrayList;
 
 /**
  * Encapsulates the state of a user process that is not contained in its
@@ -25,8 +26,8 @@ public class UserProcess {
     public UserProcess() {
 	int numPhysPages = Machine.processor().getNumPhysPages();
 	pageTable = new TranslationEntry[numPhysPages];
-	for (int i=0; i<numPhysPages; i++)
-	    pageTable[i] = new TranslationEntry(i,i, true,false,false,false);
+	for (int i = 0; i < numPhysPages; i++)
+	    pageTable[i] = new TranslationEntry(i, i, false, false, false, false);
 	openFile[0] = UserKernel.console.openForReading();
 	openFile[1] = UserKernel.console.openForWriting();
     }
@@ -72,6 +73,25 @@ public class UserProcess {
      */
     public void restoreState() {
 	Machine.processor().setPageTable(pageTable);
+    }
+
+    private int pageNumTrans(int vpn, boolean write) {
+        if (vpn < 0 || vpn >= pageTable.length)
+            return -1;
+        if (!pageTable[vpn].valid || pageTable[vpn].vpn != vpn)
+            return -1;
+        if (write && pageTable[vpn].readOnly)
+            return -1;
+        return pageTable[vpn].ppn;
+    }
+
+    private int addrTrans(int vaddr, boolean write) {
+        int vpn = vaddr / pageSize;
+        int offset = vaddr % pageSize;
+        int ppn = pageNumTrans(vpn, write);
+        if (ppn == -1)
+            return -1;
+        return ppn * pageSize + offset;
     }
 
     /**
@@ -135,12 +155,16 @@ public class UserProcess {
 
 	byte[] memory = Machine.processor().getMemory();
 	
-	// for now, just assume that virtual addresses equal physical addresses
 	if (vaddr < 0 || vaddr >= memory.length)
 	    return 0;
 
 	int amount = Math.min(length, memory.length-vaddr);
-	System.arraycopy(memory, vaddr, data, offset, amount);
+    for (int i = 0; i < amount; i++) {
+        int paddr = addrTrans(vaddr + i, false);
+        if (paddr == -1)
+            return i;
+        data[offset + i] = memory[paddr];
+    }
 
 	return amount;
     }
@@ -178,12 +202,16 @@ public class UserProcess {
 
 	byte[] memory = Machine.processor().getMemory();
 	
-	// for now, just assume that virtual addresses equal physical addresses
 	if (vaddr < 0 || vaddr >= memory.length)
 	    return 0;
 
 	int amount = Math.min(length, memory.length-vaddr);
-	System.arraycopy(data, offset, memory, vaddr, amount);
+    for (int i = 0; i < amount; i++) {
+        int paddr = addrTrans(vaddr + i, true);
+        if (paddr == -1)
+            return i;
+        memory[paddr] = data[offset + i];
+    }
 
 	return amount;
     }
@@ -252,8 +280,28 @@ public class UserProcess {
 	// and finally reserve 1 page for arguments
 	numPages++;
 
-	if (!loadSections())
+    ArrayList<Integer> pageNumber = UserKernel.requestPages(numPages);
+    if (pageNumber == null) {
+        return false;
+    }
+    int curPages = 0;
+    for (int s = 0; s < coff.getNumSections(); s++) {
+        CoffSection section = coff.getSection(s);
+        boolean readOnly = section.isReadOnly();
+        for (int i = 0; i < section.getLength(); i++) {
+            int ppn = pageNumber.get(curPages);
+            pageTable[curPages] = new TranslationEntry(curPages, ppn, true, readOnly, false, false);
+            curPages++;
+        }
+    }
+    for (int i = curPages; i < numPages; i++) {
+        int ppn = pageNumber.get(i);
+        pageTable[i] = new TranslationEntry(i, ppn, true, false, false, false);
+    }
+
+	if (!loadSections()) {
 	    return false;
+    }
 
 	// store arguments in last page
 	int entryOffset = (numPages-1)*pageSize;
@@ -300,8 +348,11 @@ public class UserProcess {
 	    for (int i=0; i<section.getLength(); i++) {
 		int vpn = section.getFirstVPN()+i;
 
-		// for now, just assume virtual addresses=physical addresses
-		section.loadPage(i, vpn);
+        // loading does not count as writing
+        int ppn = pageNumTrans(vpn, false);
+        if (ppn == -1)
+            return false;
+		section.loadPage(i, ppn);
 	    }
 	}
 	
@@ -349,6 +400,7 @@ public class UserProcess {
     }
 
     private int handleExit() {
+        /* release all memory */
     	return 0;
     }
 
