@@ -245,7 +245,7 @@ public class UserProcess {
      */
     private boolean load(String name, String[] args) {
 	Lib.debug(dbgProcess, "UserProcess.load(\"" + name + "\")");
-	
+
 	OpenFile executable = ThreadedKernel.fileSystem.open(name, false);
 	if (executable == null) {
 	    Lib.debug(dbgProcess, "\topen failed");
@@ -299,6 +299,7 @@ public class UserProcess {
 
     ArrayList<Integer> pageNumber = UserKernel.requestPages(numPages);
     if (pageNumber == null) {
+        coff.close();
         return false;
     }
     int curPages = 0;
@@ -317,6 +318,7 @@ public class UserProcess {
     }
 
 	if (!loadSections()) {
+        coff.close();
 	    return false;
     }
 
@@ -338,6 +340,7 @@ public class UserProcess {
 	    stringOffset += 1;
 	}
 
+    coff.close();
 	return true;
     }
 
