@@ -24,12 +24,28 @@ public class UserProcess {
      * Allocate a new process.
      */
     public UserProcess() {
+    pid = ++pidCounter;
+    activeProcess++;
+    parentPid.add(0);
+    exitStatus.add(0);
+    joinLock.add(new Semaphore(0));
 	int numPhysPages = Machine.processor().getNumPhysPages();
 	pageTable = new TranslationEntry[numPhysPages];
 	for (int i = 0; i < numPhysPages; i++)
 	    pageTable[i] = new TranslationEntry(i, i, false, false, false, false);
+    openFile = new OpenFile[numOpenFiles];
 	openFile[0] = UserKernel.console.openForReading();
 	openFile[1] = UserKernel.console.openForWriting();
+    for (int i = 2; i < numOpenFiles; i++)
+        openFile[i] = null;
+    }
+
+    public int getPid() {
+        return pid;
+    }
+
+    public void setParent(int pid) {
+        parentPid.set(this.pid - 1, pid);
     }
     
     /**
@@ -393,23 +409,87 @@ public class UserProcess {
      */
     private int handleHalt() {
 
+    /* ignore halt() from non-root processes */
+    if (pid != 1)
+        return 0;
+
 	Machine.halt();
 	
 	Lib.assertNotReached("Machine.halt() did not halt machine!");
 	return 0;
     }
 
-    private int handleExit() {
-        /* release all memory */
+    private int handleExit(int status) {
+        // close all files
+        for (int i = 2; i < numOpenFiles; i++) {
+            if (openFile[i] != null) {
+                openFile[i].close();
+            }
+        }
+
+        // release all memory
+        ArrayList<Integer> pageNumber = new ArrayList<Integer>();
+        for (int i = 0; i < numPages; i++)
+            pageNumber.add(pageTable[i].ppn);
+        UserKernel.releasePages(pageNumber);
+
+        // record exit status and inform parent
+        exitStatus.set(this.pid - 1, status);
+        joinLock.get(this.pid - 1).V();
+        activeProcess--;
+        if (activeProcess == 0)
+            Kernel.kernel.terminate();
+
     	return 0;
     }
 
-    private int handleExec() {
-    	return 0;
+    private int handleExec(int nameAddr, int argc, int argvAddr) {
+        String name = readVirtualMemoryString(nameAddr, 256);
+        if (name == null)
+            return -1;
+        if (!name.endsWith(".coff"))
+            return -1;
+        if (argc < 0)
+            return -1;
+
+        String args[] = new String[argc];
+        for (int i = 0; i < argc; i++) {
+            byte data[] = new byte[4];
+            readVirtualMemory(argvAddr + i * 4, data);
+            int argAddr = 0;
+            for (int j = 3; j >= 0; j--)
+                argvAddr = argvAddr * 256 + data[j];
+            args[i] = readVirtualMemoryString(argAddr, 256);
+            if (args[i] == null)
+                return -1;
+        }
+
+        UserProcess child = UserProcess.newUserProcess();
+        child.setParent(this.pid);
+        if (!child.execute(name, args))
+            return -1;
+
+    	return child.getPid();
     }
 
-    private int handleJoin() {
-    	return 0;
+    private int handleJoin(int childPid, int statusAddr) {
+        //check whether pid is a child
+        if (childPid < 0 || childPid > parentPid.size())
+            return -1;
+        if (parentPid.get(childPid - 1) != this.pid)
+            return -1;
+
+        // wait for child to exit
+        joinLock.get(childPid - 1).P();
+
+        // write status to memory
+        int status = exitStatus.get(childPid - 1);
+        byte data[] = new byte[4];
+        for (int i = 0; i < 4; i++)
+            data[i] = (byte) ((status >> (i * 8)) & 255);
+        writeVirtualMemory(statusAddr, data);
+
+    	return (status == 0) ? 1 : 0;
     }
 
     private int handleOpen(int nameAddr, boolean create) {
@@ -447,6 +527,8 @@ public class UserProcess {
     	OpenFile file = openFile[fd];
     	if (file == null)
     		return -1;
+        if (count > Machine.processor().getNumPhysPages() * pageSize)
+            return -1;
     	byte buffer[] = new byte[count];
     	int len = readVirtualMemory(bufferAddr, buffer, 0, count);
     	if (len == -1)
@@ -521,13 +603,13 @@ public class UserProcess {
 	    return handleHalt();
 
 	case syscallExit:
-	    return handleExit();
+	    return handleExit(a0);
 
 	case syscallExec:
-	    return handleExec();
+	    return handleExec(a0, a1, a2);
 
 	case syscallJoin:
-	    return handleJoin();
+	    return handleJoin(a0, a1);
 
 	case syscallCreate:
 	    return handleOpen(a0, true);
@@ -584,6 +666,13 @@ public class UserProcess {
 	}
     }
 
+    private int pid;
+    private static int pidCounter = 0;
+    private static int activeProcess = 0;
+    private static ArrayList<Integer> parentPid = new ArrayList<Integer>();
+    private static ArrayList<Integer> exitStatus = new ArrayList<Integer>();
+    private static ArrayList<Semaphore> joinLock = new ArrayList<Semaphore>();
+
     /** The program being run by this process. */
     protected Coff coff;
 
@@ -602,5 +691,5 @@ public class UserProcess {
     private static final char dbgProcess = 'a';
 
     protected final int numOpenFiles = 16;
-    private OpenFile openFile[] = new OpenFile[numOpenFiles];
+    private OpenFile openFile[];
 }

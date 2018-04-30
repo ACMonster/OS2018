@@ -36,6 +36,13 @@ public class UserKernel extends ThreadedKernel {
         return pageNumber;
     }
 
+    public static void releasePages(ArrayList<Integer> pageNumber) {
+        pageLock.acquire();
+        for (int i = 0; i < pageNumber.size(); i++)
+            availPages.add(pageNumber.get(i));
+        pageLock.release();
+    }
+
     /**
      * Initialize this kernel. Creates a synchronized console and sets the
      * processor's exception handler.
