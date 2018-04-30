@@ -77,10 +77,10 @@ public class SynchConsole {
      * @param	value	the byte to be sent (the upper 24 bits are ignored).
      */
     public void writeByte(int value) {
-	writeLock.acquire();
+	writeByteLock.acquire();
 	console.writeByte(value);
 	writeWait.P();
-	writeLock.release();
+	writeByteLock.release();
     }
 
     /**
@@ -101,6 +101,7 @@ public class SynchConsole {
     private SerialConsole console;
     private Lock readLock = new Lock();
     private Lock writeLock = new Lock();
+    private Lock writeByteLock = new Lock();
     private Semaphore readWait = new Semaphore(0);
     private Semaphore writeWait = new Semaphore(0);
 
@@ -136,8 +137,10 @@ public class SynchConsole {
 	    if (!canWrite)
 		return 0;
 	    
+	    writeLock.acquire();
 	    for (int i=0; i<length; i++)
 		SynchConsole.this.writeByte(buf[offset+i]);
+		writeLock.release();
 	    
 	    return length;
 	}

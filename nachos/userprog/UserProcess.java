@@ -28,6 +28,7 @@ public class UserProcess {
     activeProcess++;
     parentPid.add(0);
     exitStatus.add(0);
+    exitNormal.add(0);
     joinLock.add(new Semaphore(0));
 	int numPhysPages = Machine.processor().getNumPhysPages();
 	pageTable = new TranslationEntry[numPhysPages];
@@ -419,7 +420,7 @@ public class UserProcess {
 	return 0;
     }
 
-    private int handleExit(int status) {
+    private int handleExit(int status, int normal) {
         // close all files
         for (int i = 2; i < numOpenFiles; i++) {
             if (openFile[i] != null) {
@@ -435,11 +436,12 @@ public class UserProcess {
 
         // record exit status and inform parent
         exitStatus.set(this.pid - 1, status);
+        exitNormal.set(this.pid - 1, normal);
         joinLock.get(this.pid - 1).V();
         activeProcess--;
         if (activeProcess == 0)
             Kernel.kernel.terminate();
-
+        KThread.currentThread().finish();
     	return 0;
     }
 
@@ -464,7 +466,7 @@ public class UserProcess {
                 return -1;
         }
 
-        UserProcess child = UserProcess.newUserProcess();
+        UserProcess child = new UserProcess();
         child.setParent(this.pid);
         if (!child.execute(name, args))
             return -1;
@@ -479,8 +481,9 @@ public class UserProcess {
         if (parentPid.get(childPid - 1) != this.pid)
             return -1;
 
-        // wait for child to exit
+        // wait for child to exit, then invalidate the child
         joinLock.get(childPid - 1).P();
+        parentPid.set(childPid - 1, -1);
 
         // write status to memory
         int status = exitStatus.get(childPid - 1);
@@ -489,7 +492,7 @@ public class UserProcess {
             data[i] = (byte) ((status >> (i * 8)) & 255);
         writeVirtualMemory(statusAddr, data);
 
-    	return (status == 0) ? 1 : 0;
+    	return exitNormal.get(childPid - 1);
     }
 
     private int handleOpen(int nameAddr, boolean create) {
@@ -603,7 +606,7 @@ public class UserProcess {
 	    return handleHalt();
 
 	case syscallExit:
-	    return handleExit(a0);
+	    return handleExit(a0, 1);
 
 	case syscallExec:
 	    return handleExec(a0, a1, a2);
@@ -657,8 +660,17 @@ public class UserProcess {
 				       );
 	    processor.writeRegister(Processor.regV0, result);
 	    processor.advancePC();
-	    break;				       
-				       
+	    break;
+
+    case Processor.exceptionPageFault:
+    case Processor.exceptionTLBMiss:
+    case Processor.exceptionReadOnly:
+    case Processor.exceptionBusError:
+    case Processor.exceptionAddressError:
+    case Processor.exceptionOverflow:
+    case Processor.exceptionIllegalInstruction:
+        handleExit(0, 0);
+
 	default:
 	    Lib.debug(dbgProcess, "Unexpected exception: " +
 		      Processor.exceptionNames[cause]);
@@ -671,6 +683,7 @@ public class UserProcess {
     private static int activeProcess = 0;
     private static ArrayList<Integer> parentPid = new ArrayList<Integer>();
     private static ArrayList<Integer> exitStatus = new ArrayList<Integer>();
+    private static ArrayList<Integer> exitNormal = new ArrayList<Integer>();
     private static ArrayList<Semaphore> joinLock = new ArrayList<Semaphore>();
 
     /** The program being run by this process. */
