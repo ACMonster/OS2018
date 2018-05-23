@@ -12,6 +12,8 @@ public class DatabaseEngine {
 
     static final String logFileName = "log.txt";
 
+    static final int blockSize = 50;
+
     public static DatabaseEngine getInstance() {
         return instance;
     }
@@ -73,6 +75,10 @@ public class DatabaseEngine {
     	JSONObject logObject = Util.readJsonFile(dataDir + logFileName);
     	logObject.getJSONArray("Transactions").put(transaction);
     	Util.writeJsonFile(dataDir + logFileName, logObject);
+    	logLength++;
+    	if (logLength == blockSize) {
+    		// write transactions to a new block
+    	}
     }
 
     public int get(String userId) {
@@ -80,14 +86,12 @@ public class DatabaseEngine {
     }
 
     public boolean put(String userId, int value) {
-        logLength++;
         addTransaction(putOp, userId, null, null, value);
         balances.put(userId, value);
         return true;
     }
 
     public boolean deposit(String userId, int value) {
-        logLength++;
         addTransaction(depositOp, userId, null, null, value);
         int balance = getOrZero(userId);
         balances.put(userId, balance + value);
@@ -95,17 +99,19 @@ public class DatabaseEngine {
     }
 
     public boolean withdraw(String userId, int value) {
-        logLength++;
         int balance = getOrZero(userId);
+        if (balance < value)
+        	return false;
         addTransaction(withdrawOp, userId, null, null, value);
         balances.put(userId, balance - value);
         return true;
     }
 
     public boolean transfer(String fromId, String toId, int value) {
-        logLength++;
         int fromBalance = getOrZero(fromId);
         int toBalance = getOrZero(toId);
+        if (fromBalance < value)
+        	return false;
         addTransaction(transferOp, null, fromId, toId, value);
         balances.put(fromId, fromBalance - value);
         balances.put(toId, toBalance + value);
