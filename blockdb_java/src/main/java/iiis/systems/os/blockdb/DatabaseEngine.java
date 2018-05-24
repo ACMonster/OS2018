@@ -14,6 +14,8 @@ public class DatabaseEngine {
 
     static final int blockSize = 50;
 
+    private JSONObject transientLog;
+
     public static DatabaseEngine getInstance() {
         return instance;
     }
@@ -28,13 +30,28 @@ public class DatabaseEngine {
 
     DatabaseEngine(String dataDir) {
         this.dataDir = dataDir;
-        JSONObject logObject = Util.readJsonFile(dataDir + logFileName);
-        if (logObject == null) {
-        	logObject = new JSONObject();
-        	logObject.put("numBlocks", 0);
-        	logObject.put("Transactions", new JSONArray());
-        	Util.writeJsonFile(dataDir + logFileName, logObject);
+
+        transientLog = Util.readJsonFile(dataDir + logFileName);
+        if (transientLog == null) {
+        	transientLog = new JSONObject();
+        	transientLog.put("numBlocks", 0);
+        	transientLog.put("Transactions", new JSONArray());
+        	Util.writeJsonFile(dataDir + logFileName, transientLog);
         }
+
+        int numBlocks = transientLog.getInt("numBlocks");
+        JSONArray transactions = transientLog.getJSONArray("Transactions");
+        logLength = transactions.length();
+
+        for (int num = 1; num <= numBlocks; num++) {
+        	JSONObject block = Util.readJsonFile(dataDir + num + ".json");
+        	JSONArray blockTransactions = block.getJSONArray("Transactions");
+	        for (Object transaction: blockTransactions)
+	        	applyTransaction((JSONObject) transaction);
+        }
+
+        for (Object transaction: transactions)
+        	applyTransaction((JSONObject) transaction);
     }
 
     private int getOrZero(String userId) {
@@ -43,6 +60,37 @@ public class DatabaseEngine {
         } else {
             return 0;
         }
+    }
+
+    private void applyTransaction(JSONObject transaction) {
+    	String type = transaction.getString("Type");
+    	String userID = transaction.getString("Type");
+    	int value = transaction.getInt("Value");
+    	int balance;
+
+    	switch (type) {
+    		case "PUT":
+    			balances.put(userID, value);
+
+    		case "DEPOSIT":
+		        balance = getOrZero(userID);
+		        balances.put(userID, balance + value);
+
+    		case "WITHDRAW":
+		        balance = getOrZero(userID);
+		        balances.put(userID, balance - value);
+
+    		case "TRANSFER":
+    			String fromID = transaction.getString("FromID");
+    			String toID = transaction.getString("ToID");
+    			int fromBalance = getOrZero(fromID);
+    			int toBalance = getOrZero(toID);
+    			balances.put(fromID, fromBalance - value);
+    			balances.put(toID, toBalance + value);
+
+    		default:
+    			System.out.println("ERROR: UNKNOWN TRANSACTION TYPE!");
+    	}
     }
 
     private void addTransaction(int op, String userID, String fromID, String toID, int value) {
@@ -72,12 +120,21 @@ public class DatabaseEngine {
     		default:
     			System.out.println("ERROR: UNKNOWN TRANSACTION TYPE!");
     	}
-    	JSONObject logObject = Util.readJsonFile(dataDir + logFileName);
-    	logObject.getJSONArray("Transactions").put(transaction);
-    	Util.writeJsonFile(dataDir + logFileName, logObject);
+    	transientLog.getJSONArray("Transactions").put(transaction);
+    	Util.writeJsonFile(dataDir + logFileName, transientLog);
     	logLength++;
     	if (logLength == blockSize) {
-    		// write transactions to a new block
+    		int num = transientLog.getInt("numBlocks") + 1;
+
+    		JSONObject block = new JSONObject();
+    		block.put("BlockID", num);
+    		block.put("PrevHash", "00000000");
+    		block.put("Transactions", transientLog.getJSONArray("Transactions"));
+    		block.put("Nonce", "00000000");
+    		Util.writeJsonFile(dataDir + num + ".json", block);
+
+    		transientLog.put("numBlocks", num);
+    		transientLog.put("Transactions", new JSONArray());
     	}
     }
 
