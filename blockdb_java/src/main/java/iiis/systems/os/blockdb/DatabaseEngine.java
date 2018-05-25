@@ -71,14 +71,17 @@ public class DatabaseEngine {
     	switch (type) {
     		case "PUT":
     			balances.put(userID, value);
+                break;
 
     		case "DEPOSIT":
 		        balance = getOrZero(userID);
 		        balances.put(userID, balance + value);
+                break;
 
     		case "WITHDRAW":
 		        balance = getOrZero(userID);
 		        balances.put(userID, balance - value);
+                break;
 
     		case "TRANSFER":
     			String fromID = transaction.getString("FromID");
@@ -87,6 +90,7 @@ public class DatabaseEngine {
     			int toBalance = getOrZero(toID);
     			balances.put(fromID, fromBalance - value);
     			balances.put(toID, toBalance + value);
+                break;
 
     		default:
     			System.out.println("ERROR: UNKNOWN TRANSACTION TYPE!");
@@ -100,22 +104,26 @@ public class DatabaseEngine {
     			transaction.put("Type", "PUT");
     			transaction.put("UserID", userID);
     			transaction.put("Value", value);
+                break;
 
     		case depositOp:
     			transaction.put("Type", "DEPOSIT");
     			transaction.put("UserID", userID);
     			transaction.put("Value", value);
+                break;
 
     		case withdrawOp:
     			transaction.put("Type", "WITHDRAW");
     			transaction.put("UserID", userID);
     			transaction.put("Value", value);
+                break;
 
     		case transferOp:
     			transaction.put("Type", "TRANSFER");
     			transaction.put("FromID", fromID);
     			transaction.put("ToID", toID);
     			transaction.put("Value", value);
+                break;
 
     		default:
     			System.out.println("ERROR: UNKNOWN TRANSACTION TYPE!");
