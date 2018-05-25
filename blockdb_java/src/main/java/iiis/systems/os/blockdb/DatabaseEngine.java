@@ -64,7 +64,7 @@ public class DatabaseEngine {
 
     private void applyTransaction(JSONObject transaction) {
     	String type = transaction.getString("Type");
-    	String userID = transaction.getString("Type");
+    	String userID = transaction.getString("UserID");
     	int value = transaction.getInt("Value");
     	int balance;
 
@@ -128,8 +128,8 @@ public class DatabaseEngine {
     		default:
     			System.out.println("ERROR: UNKNOWN TRANSACTION TYPE!");
     	}
+
     	transientLog.getJSONArray("Transactions").put(transaction);
-    	Util.writeJsonFile(dataDir + logFileName, transientLog);
     	logLength++;
     	if (logLength == blockSize) {
     		int num = transientLog.getInt("numBlocks") + 1;
@@ -143,7 +143,9 @@ public class DatabaseEngine {
 
     		transientLog.put("numBlocks", num);
     		transientLog.put("Transactions", new JSONArray());
+            logLength = 0;
     	}
+        Util.writeJsonFile(dataDir + logFileName, transientLog);
     }
 
     public int get(String userId) {
@@ -151,12 +153,16 @@ public class DatabaseEngine {
     }
 
     public boolean put(String userId, int value) {
+        if (value < 0)
+            return false;
         addTransaction(putOp, userId, null, null, value);
         balances.put(userId, value);
         return true;
     }
 
     public boolean deposit(String userId, int value) {
+        if (value < 0)
+            return false;
         addTransaction(depositOp, userId, null, null, value);
         int balance = getOrZero(userId);
         balances.put(userId, balance + value);
@@ -164,6 +170,8 @@ public class DatabaseEngine {
     }
 
     public boolean withdraw(String userId, int value) {
+        if (value < 0)
+            return false;
         int balance = getOrZero(userId);
         if (balance < value)
         	return false;
@@ -173,6 +181,8 @@ public class DatabaseEngine {
     }
 
     public boolean transfer(String fromId, String toId, int value) {
+        if (value < 0)
+            return false;
         int fromBalance = getOrZero(fromId);
         int toBalance = getOrZero(toId);
         if (fromBalance < value)
