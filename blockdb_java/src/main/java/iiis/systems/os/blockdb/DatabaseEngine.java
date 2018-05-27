@@ -64,21 +64,24 @@ public class DatabaseEngine {
 
     private void applyTransaction(JSONObject transaction) {
     	String type = transaction.getString("Type");
-    	String userID = transaction.getString("UserID");
-    	int value = transaction.getInt("Value");
+        int value = transaction.getInt("Value");
+    	String userID;
     	int balance;
 
     	switch (type) {
     		case "PUT":
+                userID = transaction.getString("UserID");
     			balances.put(userID, value);
                 break;
 
     		case "DEPOSIT":
+                userID = transaction.getString("UserID");
 		        balance = getOrZero(userID);
 		        balances.put(userID, balance + value);
                 break;
 
     		case "WITHDRAW":
+                userID = transaction.getString("UserID");
 		        balance = getOrZero(userID);
 		        balances.put(userID, balance - value);
                 break;
