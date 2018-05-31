@@ -20,7 +20,7 @@ public class DatabaseEngine {
         return instance;
     }
 
-    synchronized public static void setup(String dataDir) {
+    public static void setup(String dataDir) {
         instance = new DatabaseEngine(dataDir);
     }
 
