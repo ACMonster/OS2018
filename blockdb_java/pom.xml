@@ -74,7 +74,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>iiis.systems.os.blockdb.BlockDatabaseServer</mainClass>
+                            <mainClass>iiis.systems.os.blockdb.BlockChainMinerServer</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
