@@ -47,14 +47,28 @@ public class BlockChainMinerServer {
     }
 
     public static void main(String[] args) throws IOException, JSONException, InterruptedException {
-        String id = args[0].substring(5);
+        String id;
+        if (args[0].startsWith("-id="))
+            id = args[0].substring(4);
+        else if (args[0].startsWith("--id="))
+            id = args[0].substring(5);
+        else {
+            System.out.println("Usage: ./start.sh --id=x");
+            return;
+        }
 
         JSONObject config = Util.readJsonFile("config.json");
-
         int numServers = config.getInt("nservers");
+
+        int numericID = Integer.parseInt(id);
+        if (numericID < 1 || numericID > numServers) {
+            System.out.println("Server ID should be between 1 and " + numServers);
+            return;
+        }
+
         List<BlockChainMinerBlockingStub> stubs = new ArrayList<>();
         for (int num = 1; num <= numServers; num++) 
-            if (!id.equals("" + num)) {
+            if (num != numericID) {
                 JSONObject server = (JSONObject)config.get("" + num);
                 ManagedChannel channel = NettyChannelBuilder.forAddress(new InetSocketAddress(server.getString("ip"), server.getInt("port")))
                                         .usePlaintext(true)

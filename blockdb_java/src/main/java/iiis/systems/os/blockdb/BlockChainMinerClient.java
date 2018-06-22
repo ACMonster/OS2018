@@ -10,6 +10,7 @@ import java.net.InetSocketAddress;
 import java.util.UUID;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Random;
 
 public class BlockChainMinerClient {
     public static void main(String[] args) throws Exception {
@@ -17,16 +18,12 @@ public class BlockChainMinerClient {
     	JSONObject config = Util.readJsonFile("config.json"); 
 
         int numServers = config.getInt("nservers");
-        List<ManagedChannel> channels = new ArrayList<>();
-        List<BlockChainMinerBlockingStub> stubs = new ArrayList<>();
-        for (int num = 1; num <= numServers; num++) {
-            JSONObject server = (JSONObject)config.get("" + num);
-            ManagedChannel channel = NettyChannelBuilder.forAddress(new InetSocketAddress(server.getString("ip"), server.getInt("port")))
-                                    .usePlaintext(true)
-                                    .build();
-            channels.add(channel);
-            stubs.add(BlockChainMinerGrpc.newBlockingStub(channel));
-        }
+        int num = (new Random()).nextInt(numServers) + 1;
+        JSONObject server = config.getJSONObject("" + num);
+        ManagedChannel channel = NettyChannelBuilder.forAddress(new InetSocketAddress(server.getString("ip"), server.getInt("port")))
+                                .usePlaintext(true)
+                                .build();
+        BlockChainMinerBlockingStub stub = BlockChainMinerGrpc.newBlockingStub(channel);
 
     	String type = args[0];
     	String userID, fromID, toID;
@@ -38,11 +35,12 @@ public class BlockChainMinerClient {
     	VerifyResponse verifyResp;
     	GetHeightResponse ghResp;
     	JsonBlockString jsonBS;
+
     	switch (type) {
     		case "GET":
     			userID = args[1];
     			param = GetRequest.newBuilder().setUserID(userID).build();
-    			getResp = stubs.get(0).get((GetRequest) param);  
+    			getResp = stub.get((GetRequest) param);  
 				System.out.println("GET " + userID + " | RETURN " + getResp.getValue()); 
     			break;
 
@@ -58,7 +56,7 @@ public class BlockChainMinerClient {
             		uuid = UUID.randomUUID().toString();
     			param = Transaction.newBuilder().setType(Transaction.Types.TRANSFER).setFromID(fromID).setToID(toID).setValue(value).setMiningFee(miningFee).setUUID(uuid).build();
                 System.out.println("TRANSFERING " + fromID + " " + toID + " " + value + " " + miningFee + " " + uuid); 
-    			boolResp = stubs.get(0).transfer((Transaction) param);
+    			boolResp = stub.transfer((Transaction) param);
 				System.out.println("TRANSFER " + fromID + " " + toID + " " + value + " " + miningFee + " " + uuid + " | RETURN success:" + boolResp.getSuccess()); 
     			break;
 
@@ -72,27 +70,26 @@ public class BlockChainMinerClient {
             	else
             		uuid = UUID.randomUUID().toString();
     			param = Transaction.newBuilder().setType(Transaction.Types.TRANSFER).setFromID(fromID).setToID(toID).setValue(value).setMiningFee(miningFee).setUUID(uuid).build();
-    			verifyResp = stubs.get(0).verify((Transaction) param);
+    			verifyResp = stub.verify((Transaction) param);
     			System.out.println("VERIFY " + fromID + " " + toID + " " + value + " " + miningFee + " " + uuid + " | RETURN result:" + verifyResp.getResult()); 
     			break;
 
     		case "GETHEIGHT":
-    			ghResp = stubs.get(0).getHeight(null);
+    			ghResp = stub.getHeight(null);
     			System.out.println("GETHEIGHT | RETURN result:" + ghResp.getHeight()); 
     			break;
 
     		case "GETBLOCK":
     			hash = args[1];
     			param = GetBlockRequest.newBuilder().setBlockHash(hash).build();
-				jsonBS = stubs.get(0).getBlock((GetBlockRequest) param);
-				System.out.println("GETBLOCK " + hash + " | RETURNS " + jsonBS.getJson() );
-
+				jsonBS = stub.getBlock((GetBlockRequest) param);
+				System.out.println("GETBLOCK " + hash + " | RETURNS " + jsonBS.getJson());
 
     		default:
     			System.out.println("ERROR: UNKNOWN REQUEST TYPE!");
     	}
-    	for (ManagedChannel channel : channels)
-    		channel.shutdown().awaitTermination(1, TimeUnit.SECONDS);
+
+    	channel.shutdown().awaitTermination(1, TimeUnit.SECONDS);
     }
 }
 
