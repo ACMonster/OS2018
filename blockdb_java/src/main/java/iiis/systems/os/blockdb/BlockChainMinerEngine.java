@@ -167,6 +167,7 @@ public class BlockChainMinerEngine {
         transaction.put("Type", "TRANSFER");
         transaction.put("FromID", fromID);
         transaction.put("ToID", toID);
+        transaction.put("Value", value);
         transaction.put("MiningFee", miningFee);
         transaction.put("UUID", uuid);
         if (transactionStatus.containsKey(uuid))
