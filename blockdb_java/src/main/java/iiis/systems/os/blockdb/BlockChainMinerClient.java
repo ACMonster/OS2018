@@ -41,7 +41,7 @@ public class BlockChainMinerClient {
     			userID = args[1];
     			param = GetRequest.newBuilder().setUserID(userID).build();
     			getResp = stub.get((GetRequest) param);  
-				System.out.println("GET " + userID + " | RETURN " + getResp.getValue()); 
+				System.out.println("Server" + num + ": " + "GET " + userID + " | RETURN " + getResp.getValue()); 
     			break;
 
 
@@ -55,9 +55,9 @@ public class BlockChainMinerClient {
             	else
             		uuid = UUID.randomUUID().toString();
     			param = Transaction.newBuilder().setType(Transaction.Types.TRANSFER).setFromID(fromID).setToID(toID).setValue(value).setMiningFee(miningFee).setUUID(uuid).build();
-                System.out.println("TRANSFERING " + fromID + " " + toID + " " + value + " " + miningFee + " " + uuid); 
+                System.out.println("Server" + num + ": " + "TRANSFERING " + fromID + " " + toID + " " + value + " " + miningFee + " " + uuid); 
     			boolResp = stub.transfer((Transaction) param);
-				System.out.println("TRANSFER " + fromID + " " + toID + " " + value + " " + miningFee + " " + uuid + " | RETURN success:" + boolResp.getSuccess()); 
+				System.out.println("Server" + num + ": " + "TRANSFER " + fromID + " " + toID + " " + value + " " + miningFee + " " + uuid + " | RETURN success:" + boolResp.getSuccess()); 
     			break;
 
     		case "VERIFY":
@@ -71,19 +71,19 @@ public class BlockChainMinerClient {
             		uuid = UUID.randomUUID().toString();
     			param = Transaction.newBuilder().setType(Transaction.Types.TRANSFER).setFromID(fromID).setToID(toID).setValue(value).setMiningFee(miningFee).setUUID(uuid).build();
     			verifyResp = stub.verify((Transaction) param);
-    			System.out.println("VERIFY " + fromID + " " + toID + " " + value + " " + miningFee + " " + uuid + " | RETURN result:" + verifyResp.getResult()); 
+    			System.out.println("Server" + num + ": " + "VERIFY " + fromID + " " + toID + " " + value + " " + miningFee + " " + uuid + " | RETURN result:" + verifyResp.getResult()); 
     			break;
 
     		case "GETHEIGHT":
     			ghResp = stub.getHeight(null);
-    			System.out.println("GETHEIGHT | RETURN result:" + ghResp.getHeight()); 
+    			System.out.println("Server" + num + ": " + "GETHEIGHT | RETURN result:" + ghResp.getHeight()); 
     			break;
 
     		case "GETBLOCK":
     			hash = args[1];
     			param = GetBlockRequest.newBuilder().setBlockHash(hash).build();
 				jsonBS = stub.getBlock((GetBlockRequest) param);
-				System.out.println("GETBLOCK " + hash + " | RETURNS " + jsonBS.getJson());
+				System.out.println("Server" + num + ": " + "GETBLOCK " + hash + " | RETURNS " + jsonBS.getJson());
 
     		default:
     			System.out.println("ERROR: UNKNOWN REQUEST TYPE!");

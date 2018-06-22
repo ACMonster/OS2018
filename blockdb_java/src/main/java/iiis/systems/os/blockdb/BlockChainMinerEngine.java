@@ -4,7 +4,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.HashSet;
-import iiis.systems.os.blockdb.BlockChainMinerGrpc.BlockChainMinerBlockingStub;  
+import iiis.systems.os.blockdb.BlockChainMinerGrpc.BlockChainMinerBlockingStub;
+import iiis.systems.os.blockdb.BlockChainMinerGrpc.BlockChainMinerStub;  
 
 import java.util.ArrayList;  
 import java.util.Collections;  
@@ -20,6 +21,11 @@ import java.io.IOException;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.net.InetSocketAddress;
+import io.grpc.ManagedChannel; 
+import io.grpc.netty.NettyChannelBuilder; 
+import io.grpc.stub.StreamObserver;
+import java.lang.Throwable;
 
 public class BlockChainMinerEngine {
     private static BlockChainMinerEngine instance = null;
@@ -34,8 +40,8 @@ public class BlockChainMinerEngine {
         return instance;
     }
 
-    synchronized public static BlockChainMinerEngine setup(String dataDir, String name, List<BlockChainMinerBlockingStub> stubs) {
-        instance = new BlockChainMinerEngine(dataDir, name, stubs);
+    synchronized public static BlockChainMinerEngine setup(String dataDir, String name, List<InetSocketAddress> address) {
+        instance = new BlockChainMinerEngine(dataDir, name, address);
         return instance;
     }
 
@@ -46,11 +52,13 @@ public class BlockChainMinerEngine {
     private TBlock leaf, root, longest;
     private TBlock mining;
     private String dataDir, name;
-    private List<BlockChainMinerBlockingStub> stubs;
+    private List<BlockChainMinerBlockingStub> blockingStubs;
+    private List<BlockChainMinerStub> stubs;
+    private List<InetSocketAddress> address;
 
-    BlockChainMinerEngine(String dataDir, String name, List<BlockChainMinerBlockingStub> stubs) {
+    BlockChainMinerEngine(String dataDir, String name, List<InetSocketAddress> address) {
         this.dataDir = dataDir;
-        this.stubs = stubs;
+        this.address = address;
         this.name = name;
 
         try {
@@ -87,6 +95,26 @@ public class BlockChainMinerEngine {
             transactionStatus.put(((JSONObject)transaction).getString("UUID"), null);
 
         update();
+    }
+
+    synchronized private void createStubs() {
+        stubs = new ArrayList<>();
+        for (InetSocketAddress ad : address) {
+            ManagedChannel channel = NettyChannelBuilder.forAddress(ad)
+                                    .usePlaintext(true)
+                                    .build();
+            stubs.add(BlockChainMinerGrpc.newStub(channel));
+        }
+    }
+
+    synchronized private void createBlockingStubs() {
+        blockingStubs = new ArrayList<>();
+        for (InetSocketAddress ad : address) {
+            ManagedChannel channel = NettyChannelBuilder.forAddress(ad)
+                                    .usePlaintext(true)
+                                    .build();
+            blockingStubs.add(BlockChainMinerGrpc.newBlockingStub(channel));
+        }
     }
 
     synchronized private void update() {
@@ -196,7 +224,8 @@ public class BlockChainMinerEngine {
             if (direct) {
                 //System.out.println("Success transfer: " + name);
                 Transaction request = Transaction.newBuilder().setFromID(fromID).setToID(toID).setValue(value).setMiningFee(miningFee).setUUID(uuid).build();
-                for (BlockChainMinerBlockingStub stub : stubs)
+                createBlockingStubs();
+                for (BlockChainMinerBlockingStub stub : blockingStubs)
                     stub.pushTransaction(request);
                 //System.out.println("Success transfer again: " + name);
             }
@@ -244,7 +273,8 @@ public class BlockChainMinerEngine {
             update();
         Set hs = new HashSet();
         List<String> pending = new ArrayList<>();
-
+        
+        // System.out.println(name + " recevieves a pushBlock request: " + jsonString);
         String prevHash;
         try {
             JSONObject newJSON = new JSONObject(jsonString);
@@ -256,6 +286,7 @@ public class BlockChainMinerEngine {
         }
 
         while (true) {
+            // System.out.println(name + " checking a block : with PrevHash = " +  prevHash);
             if (!Hash.checkHash(Hash.getHashString(jsonString)))
                 return;
             pending.add(jsonString);
@@ -266,7 +297,8 @@ public class BlockChainMinerEngine {
             hs.add(prevHash);
             jsonString = null;
             GetBlockRequest request = GetBlockRequest.newBuilder().setBlockHash(prevHash).build();
-            for (BlockChainMinerBlockingStub stub : stubs) {
+            createBlockingStubs();
+            for (BlockChainMinerBlockingStub stub : blockingStubs) {
                 jsonString = stub.getBlock(request).getJson();
                 if (jsonString != null)
                     break;
@@ -282,8 +314,10 @@ public class BlockChainMinerEngine {
             } catch (JSONException e) {
                 return;
             }
+            // System.out.println(name + " recevieves a block : with PrevHash = " +  prevHash);
             TBlock block = new TBlock(json, blockHash.get(prevHash));
             if (block.applyAll()) {
+                // System.out.println(name + " accepts a block : with PrevHash = " +  prevHash);
                 // haven't check "the block’s transactions are new transactions"
                 blocks.add(block);
                 if (block.height > longest.height)
@@ -295,14 +329,14 @@ public class BlockChainMinerEngine {
             else
                 break;
         }
-        if (leaf != longest)
-            update();
+        // if (leaf != longest)
+        //     update();
     }
 
     synchronized public void pushTransaction(String fromID, String toID, int value, int miningFee, String uuid) {
-        //System.out.println("Starting pushTransaction: " + name);
+        // System.out.println(name + " Starting pushTransaction: " + name);
         transfer(fromID, toID, value, miningFee, uuid, false);
-        //System.out.println("Finishing pushTransaction: " + name);
+        // System.out.println(name + " Finishing pushTransaction: " + name);
     }
 
 
@@ -327,8 +361,21 @@ public class BlockChainMinerEngine {
             if (Hash.checkHash(mining.hash)) {
                 pushBlock(mining.jsonString);
                 JsonBlockString request = JsonBlockString.newBuilder().setJson(mining.jsonString).build();
-                for (BlockChainMinerBlockingStub stub : stubs)
-                    stub.pushBlock(request);
+                createStubs();
+                for (BlockChainMinerStub stub : stubs) {
+                    // System.out.println(name + " sneds a pushBlock request");
+                    stub.pushBlock(request, new StreamObserver<Null>() {
+                        @Override
+                        public void onNext(Null x) {
+                        }
+                        @Override
+                        public void onError(Throwable t) {
+                        }
+                        @Override
+                        public void onCompleted() {
+                        }
+                    });
+                }
                 return true;
             }
         }

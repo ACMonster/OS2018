@@ -66,18 +66,15 @@ public class BlockChainMinerServer {
             return;
         }
 
-        List<BlockChainMinerBlockingStub> stubs = new ArrayList<>();
+        List<InetSocketAddress> address = new ArrayList<>();
         for (int num = 1; num <= numServers; num++) 
             if (num != numericID) {
                 JSONObject server = (JSONObject)config.get("" + num);
-                ManagedChannel channel = NettyChannelBuilder.forAddress(new InetSocketAddress(server.getString("ip"), server.getInt("port")))
-                                        .usePlaintext(true)
-                                        .build();
-                stubs.add(BlockChainMinerGrpc.newBlockingStub(channel));
+                address.add(new InetSocketAddress(server.getString("ip"), server.getInt("port")));
             }
 
         config = (JSONObject)config.get(id);
-        String address = config.getString("ip");
+        String ip = config.getString("ip");
         int port = Integer.parseInt(config.getString("port"));
         String dataDir = config.getString("dataDir");
 
@@ -85,7 +82,7 @@ public class BlockChainMinerServer {
         if (id.length() == 1)
             serverName += "0";
         serverName += id;
-        final BlockChainMinerEngine engine = BlockChainMinerEngine.setup(dataDir, serverName, stubs);
+        final BlockChainMinerEngine engine = BlockChainMinerEngine.setup(dataDir, serverName, address);
 
         new Thread(new Runnable() {
             @Override
@@ -101,7 +98,7 @@ public class BlockChainMinerServer {
         }).start();
 
         final BlockChainMinerServer server = new BlockChainMinerServer();
-        server.start(address, port, engine);
+        server.start(ip, port, engine);
         server.blockUntilShutdown();
     }
 
