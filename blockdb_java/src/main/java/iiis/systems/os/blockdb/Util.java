@@ -4,6 +4,7 @@ import org.json.JSONObject;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 
 public class Util {
@@ -16,11 +17,15 @@ public class Util {
     	}
     }
 
-    public static boolean writeJsonFile(String filePath, JSONObject o) {
+    public static boolean writeJsonFile(String fileName, JSONObject o) {
     	boolean success = true;
     	try {
-    		Files.write(Paths.get(filePath), o.toString().getBytes());
+            Path filePath = Paths.get(fileName);
+            if (!Files.exists(filePath))
+                Files.createFile(filePath);
+    		Files.write(filePath, o.toString().getBytes());
     	} catch (IOException e) {
+            System.out.println(e);
     		success = false;
     	}
     	return success;

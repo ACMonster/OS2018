@@ -18,6 +18,9 @@ import iiis.systems.os.blockdb.hash.Hash;
 
 import java.io.IOException;
 
+import java.nio.file.Files;
+import java.nio.file.Paths;
+
 public class BlockChainMinerEngine {
     private static BlockChainMinerEngine instance = null;
 
@@ -50,12 +53,19 @@ public class BlockChainMinerEngine {
         this.stubs = stubs;
         this.name = name;
 
+        try {
+            Files.createDirectories(Paths.get(dataDir));
+        } catch (IOException e) {
+            System.out.println(e);
+        }
+
         root = new TBlock("{\"PrevHash\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"Transactions\":[]}", null);
         root.hash = "0000000000000000000000000000000000000000000000000000000000000000";
         root.height = 0;
         blockHash.put("0000000000000000000000000000000000000000000000000000000000000000", root);
         blocks.add(root);
         leaf = longest = root;
+
         transientLog = Util.readJsonFile(dataDir + logFileName);
         if (transientLog == null) {
         	transientLog = new JSONObject();
