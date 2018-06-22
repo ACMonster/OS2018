@@ -306,8 +306,9 @@ public class BlockChainMinerEngine {
         if (mining.json.getJSONArray("Transactions").length() == 0)
             return false;
         Random rand = new Random();
-        String nonce = "";
+        String nonce;
         for (int i = 0; i < iter; ++ i) {
+            nonce = "";
             nonce += rand.nextInt(10);
             nonce += rand.nextInt(10);
             nonce += rand.nextInt(10);
@@ -318,13 +319,10 @@ public class BlockChainMinerEngine {
             nonce += rand.nextInt(10);
             mining.update(nonce);
             if (Hash.checkHash(mining.hash)) {
-                //System.out.println("Success: " + name);
                 pushBlock(mining.jsonString);
-                //System.out.println("Success push: " + name);
                 JsonBlockString request = JsonBlockString.newBuilder().setJson(mining.jsonString).build();
                 for (BlockChainMinerBlockingStub stub : stubs)
                     stub.pushBlock(request);
-                //System.out.println("Success push again: " + name);
                 return true;
             }
         }
