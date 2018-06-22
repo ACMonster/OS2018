@@ -128,7 +128,7 @@ public class BlockChainMinerEngine {
         mining = new TBlock("{\"BlockID\":" + blocks.size() + ",\"PrevHash\":\"" + leaf.hash + "\",\"Transactions\":[], \"MinerID\":\"" + name + "\"}", leaf);
 
         for (Object transaction: merged) 
-            applyTransaction((JSONObject) transaction);
+            applyTransaction((JSONObject) transaction, name);
     }
 
     int getOr1000(String userId) {
@@ -139,7 +139,7 @@ public class BlockChainMinerEngine {
         }
     }
 
-    synchronized private boolean applyTransaction(JSONObject transaction) {
+    synchronized private boolean applyTransaction(JSONObject transaction, String minerID) {
 
         String fromID = transaction.getString("FromID");
         String toID = transaction.getString("ToID");
@@ -149,13 +149,15 @@ public class BlockChainMinerEngine {
 
     	int fromBalance = getOr1000(fromID);
     	int toBalance = getOr1000(toID);
+        int minerBalance = getOr1000(minerID);
         if (fromBalance < value || value < miningFee || miningFee <= 0)
             return false;
     	balances.put(fromID, fromBalance - value);
     	balances.put(toID, toBalance + value - miningFee);
+        balances.put(minerID, minerBalance + miningFee);
         
         if (mining.json.getJSONArray("Transactions").length() < blockSize) {
-            mining.applyTransaction(transaction);
+            mining.applyTransaction(transaction, minerID);
 
             mining.json.getJSONArray("Transactions").put(transaction);
             mining.whole.getJSONArray("Transactions").put(transaction);
@@ -185,7 +187,7 @@ public class BlockChainMinerEngine {
         if (transactionStatus.containsKey(uuid))
             return false;
         //System.out.println("Doing transfer: " + name + direct);
-        if (applyTransaction(transaction)) {
+        if (applyTransaction(transaction, name)) {
             transientLog.getJSONArray("Transactions").put(transaction);
             if (transientLog.getJSONArray("Transactions").length() % 1 == 0)
                 Util.writeJsonFile(dataDir + logFileName, transientLog);
@@ -293,6 +295,8 @@ public class BlockChainMinerEngine {
             else
                 break;
         }
+        if (leaf != longest)
+            update();
     }
 
     synchronized public void pushTransaction(String fromID, String toID, int value, int miningFee, String uuid) {

@@ -81,7 +81,11 @@ public class BlockChainMinerServer {
         int port = Integer.parseInt(config.getString("port"));
         String dataDir = config.getString("dataDir");
 
-        final BlockChainMinerEngine engine = BlockChainMinerEngine.setup(dataDir, "Server" + id, stubs);
+        String serverName = "Server";
+        if (id.length() == 1)
+            serverName += "0";
+        serverName += id;
+        final BlockChainMinerEngine engine = BlockChainMinerEngine.setup(dataDir, serverName, stubs);
 
         new Thread(new Runnable() {
             @Override

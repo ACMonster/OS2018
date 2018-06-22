@@ -45,7 +45,7 @@ for I in `seq 0 9`; do
 done
 echo "You should already see 5~10 blocks."
 sleep 15
-echo "Check value: expecting value=5000"
+echo "Check value: expecting value=4980"
 java -cp target/blockdb-1.0-SNAPSHOT.jar iiis.systems.os.blockdb.BlockChainMinerClient GET USER0099
 
 echo "Step 3: Test against invalid transfer"
@@ -55,7 +55,7 @@ done
 
 sleep 15
 
-echo "Check value: expecting value=5000"
+echo "Check value: expecting value=4980"
 java -cp target/blockdb-1.0-SNAPSHOT.jar iiis.systems.os.blockdb.BlockChainMinerClient GET USER0099
 
 echo "Check value: expecting value=600"

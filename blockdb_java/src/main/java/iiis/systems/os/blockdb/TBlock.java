@@ -37,7 +37,7 @@ public class TBlock {
 		}
 	}
 
-	boolean applyTransaction(JSONObject transaction) {
+	boolean applyTransaction(JSONObject transaction, String minerID) {
 		String fromID = transaction.getString("FromID");
         String toID = transaction.getString("ToID");
         int value = transaction.getInt("Value");
@@ -46,18 +46,21 @@ public class TBlock {
 
     	int fromBalance = getOr1000(fromID);
     	int toBalance = getOr1000(toID);
+        int minerBalance = getOr1000(minerID);
         if (fromBalance < value || value < miningFee || miningFee <= 0)
             return false;
     	balances.put(fromID, fromBalance - value);
     	balances.put(toID, toBalance + value - miningFee);
+        balances.put(minerID, minerBalance + miningFee);
 
     	return true;
 	}
 
 	boolean applyAll() {
 		JSONArray transactions = json.getJSONArray("Transactions");
+		String minerID = json.getString("MinerID");
 		for (Object transaction : transactions)
-			if (!applyTransaction((JSONObject) transaction))
+			if (!applyTransaction((JSONObject) transaction, minerID))
 				return false;
 		return true;
 	}
