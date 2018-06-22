@@ -20,15 +20,20 @@ public class TBlock {
 	TBlock(String jsonString, TBlock prev) {
 		this.prev = prev;
 		this.jsonString = jsonString;
-		this.height = this.prev.height + 1;
+		if (prev == null)
+			this.height = 0;
+		else
+			this.height = this.prev.height + 1;
 		this.json = new JSONObject(jsonString);
 		this.whole = new JSONObject(jsonString);
 		this.whole.put("jsonString", jsonString);
 		this.hash = Hash.getHashString(jsonString);
-		Iterator iter = this.prev.balances.entrySet().iterator();
-		while(iter.hasNext()) {
-		    Map.Entry entry = (Map.Entry)iter.next();
-		    this.balances.put((String)entry.getKey(), (Integer)entry.getValue());
+		if (prev != null) {
+			Iterator iter = this.prev.balances.entrySet().iterator();
+			while(iter.hasNext()) {
+			    Map.Entry entry = (Map.Entry)iter.next();
+			    this.balances.put((String)entry.getKey(), (Integer)entry.getValue());
+			}
 		}
 	}
 
