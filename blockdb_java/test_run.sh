@@ -32,21 +32,36 @@ sleep 1
 echo "Step 1: Quickly push many transactions"
 for I in `seq 0 9`; do
 	# param: from, to, value, fee
-	java -cp target/blockdb-1.0-SNAPSHOT.jar iiis.systems.os.blockdb.BlockChainMinerClient TRANSFER USER000$I USER0099 5 1
+	java -cp target/blockdb-1.0-SNAPSHOT.jar iiis.systems.os.blockdb.BlockChainMinerClient TRANSFER USER000$I USER0099 200 1
 done
-sleep 10
-echo "Check value: expecting value=995"
+sleep 15
+echo "Check value: expecting value=800"
 java -cp target/blockdb-1.0-SNAPSHOT.jar iiis.systems.os.blockdb.BlockChainMinerClient GET USER0005
 
 echo "Step 2: Slowly push many transactions, should cause more blocks to be produced"
 for I in `seq 0 9`; do
-	java -cp target/blockdb-1.0-SNAPSHOT.jar iiis.systems.os.blockdb.BlockChainMinerClient TRANSFER USER000$I USER0099 5 1
+	java -cp target/blockdb-1.0-SNAPSHOT.jar iiis.systems.os.blockdb.BlockChainMinerClient TRANSFER USER000$I USER0099 200 1
 	sleep 2
 done
 echo "You should already see 5~10 blocks."
-sleep 10
-echo "Check value: expecting value=1080"
+sleep 15
+echo "Check value: expecting value=5000"
 java -cp target/blockdb-1.0-SNAPSHOT.jar iiis.systems.os.blockdb.BlockChainMinerClient GET USER0099
+
+echo "Step 3: Test against invalid transfer"
+for I in `seq 0 9`; do
+	java -cp target/blockdb-1.0-SNAPSHOT.jar iiis.systems.os.blockdb.BlockChainMinerClient TRANSFER USER000$I USER0099 601 1
+done
+
+sleep 15
+
+echo "Check value: expecting value=5000"
+java -cp target/blockdb-1.0-SNAPSHOT.jar iiis.systems.os.blockdb.BlockChainMinerClient GET USER0099
+
+echo "Check value: expecting value=600"
+for I in `seq 0 9`; do
+	java -cp target/blockdb-1.0-SNAPSHOT.jar iiis.systems.os.blockdb.BlockChainMinerClient GET USER000$I
+done
 
 echo "Test completed. Please verify BlockChain is legitimate and all earliest transactions are verified."
 

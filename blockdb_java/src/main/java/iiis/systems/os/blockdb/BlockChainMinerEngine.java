@@ -254,6 +254,8 @@ public class BlockChainMinerEngine {
         }
 
         while (true) {
+            if (!Hash.checkHash(Hash.getHashString(jsonString)))
+                return;
             pending.add(jsonString);
             if (blockHash.containsKey(prevHash))
                 break;
