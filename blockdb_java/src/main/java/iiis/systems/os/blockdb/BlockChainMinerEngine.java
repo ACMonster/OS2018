@@ -86,7 +86,7 @@ public class BlockChainMinerEngine {
 
         for (int num = 1; num <= numBlocks; num++) {
         	JSONObject block = Util.readJsonFile(dataDir + num + ".json");
-        	String jsonString = block.getString("json");
+        	String jsonString = block.getString("jsonString");
 	        pushBlock(jsonString);
         }
 
