@@ -57,6 +57,7 @@ public class BlockChainMinerClient {
             	else
             		uuid = UUID.randomUUID().toString();
     			param = Transaction.newBuilder().setType(Transaction.Types.TRANSFER).setFromID(fromID).setToID(toID).setValue(value).setMiningFee(miningFee).setUUID(uuid).build();
+                System.out.println("TRANSFERING " + fromID + " " + toID + " " + value + " " + miningFee + " " + uuid); 
     			boolResp = stubs.get(0).transfer((Transaction) param);
 				System.out.println("TRANSFER " + fromID + " " + toID + " " + value + " " + miningFee + " " + uuid + " | RETURN success:" + boolResp.getSuccess()); 
     			break;

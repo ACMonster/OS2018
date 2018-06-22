@@ -75,8 +75,8 @@ public class BlockChainMinerServer {
                 int total = 0;
                 while (true) {
                     total += 100;
-                    if (total % 100000 == 0)
-                        System.out.println("iteration" + total);
+                    //if (total % 100000 == 0)
+                    //    System.out.println("iteration" + total);
                     engine.compute(100);
                 }
             }

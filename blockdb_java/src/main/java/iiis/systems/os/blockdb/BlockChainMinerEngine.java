@@ -13,6 +13,7 @@ import java.util.Random;
 
 import org.json.JSONObject;
 import org.json.JSONArray;
+import org.json.JSONException;
 import iiis.systems.os.blockdb.hash.Hash;
 
 import java.io.IOException;
@@ -179,9 +180,11 @@ public class BlockChainMinerEngine {
 
             transactionStatus.put(uuid, null);
             if (direct) {
+                System.out.println("Success transfer: " + name);
                 Transaction request = Transaction.newBuilder().setFromID(fromID).setToID(toID).setValue(value).setMiningFee(miningFee).setUUID(uuid).build();
                 for (BlockChainMinerBlockingStub stub : stubs)
                     stub.pushTransaction(request);
+                System.out.println("Success transfer again: " + name);
             }
             return true;
         }
@@ -228,7 +231,16 @@ public class BlockChainMinerEngine {
         Set hs = new HashSet();
         List<String> pending = new ArrayList<>();
 
-        String prevHash = (new JSONObject(jsonString)).getString("PrevHash");
+        String prevHash;
+        try {
+            JSONObject newJSON = new JSONObject(jsonString);
+            if (newJSON.getJSONArray("Transactions").length() == 0)
+                return;
+            prevHash = newJSON.getString("PrevHash");
+        } catch (JSONException e) {
+            return;
+        }
+
         while (true) {
             pending.add(jsonString);
             if (blockHash.containsKey(prevHash))
@@ -249,12 +261,18 @@ public class BlockChainMinerEngine {
         
         Collections.reverse(pending);
         for (String json : pending) {
-            prevHash = (new JSONObject(json)).getString("PrevHash");
+            try {
+                prevHash = (new JSONObject(json)).getString("PrevHash");
+            } catch (JSONException e) {
+                return;
+            }
             TBlock block = new TBlock(json, blockHash.get(prevHash));
             if (block.applyAll()) {
                 // haven't check "the block’s transactions are new transactions"
                 blocks.add(block);
                 if (block.height > longest.height)
+                    longest = block;
+                else if (block.height == longest.height && block.hash.compareTo(longest.hash) < 0)
                     longest = block;
                 blockHash.put(block.hash, block);
             }
@@ -271,6 +289,8 @@ public class BlockChainMinerEngine {
     synchronized public boolean compute(int iter) {
         if (leaf != longest)
             update();
+        if (mining.json.getJSONArray("Transactions").length() == 0)
+            return false;
         Random rand = new Random();
         String nonce = "";
         for (int i = 0; i < iter; ++ i) {
@@ -284,10 +304,13 @@ public class BlockChainMinerEngine {
             nonce += rand.nextInt(10);
             mining.update(nonce);
             if (Hash.checkHash(mining.hash)) {
+                System.out.println("Success: " + name);
                 pushBlock(mining.jsonString);
+                System.out.println("Success push: " + name);
                 JsonBlockString request = JsonBlockString.newBuilder().setJson(mining.jsonString).build();
                 for (BlockChainMinerBlockingStub stub : stubs)
                     stub.pushBlock(request);
+                System.out.println("Success push again: " + name);
                 return true;
             }
         }
