@@ -1,6 +1,8 @@
 package iiis.systems.os.blockdb;
 
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.List;
 import java.util.Set;
 import java.util.HashSet;
@@ -154,6 +156,14 @@ public class BlockChainMinerEngine {
         Util.writeJsonFile(dataDir + logFileName, transientLog);
 
         mining = new TBlock("{\"BlockID\":" + blocks.size() + ",\"PrevHash\":\"" + leaf.hash + "\",\"Transactions\":[], \"MinerID\":\"" + name + "\"}", leaf);
+        balances.clear();
+        if (leaf != null) {
+            Iterator iter = leaf.balances.entrySet().iterator();
+            while(iter.hasNext()) {
+                Map.Entry entry = (Map.Entry)iter.next();
+                balances.put((String)entry.getKey(), (Integer)entry.getValue());
+            }
+        }
 
         for (Object transaction: merged) 
             applyTransaction((JSONObject) transaction, name);
