@@ -162,6 +162,7 @@ public class BlockChainMinerEngine {
     }
 
     synchronized public boolean transfer(String fromID, String toID, int value, int miningFee, String uuid, boolean direct) {
+        //System.out.println("Starting transfer: " + name + direct);
         if (leaf != longest)
             update();
         JSONObject transaction = new JSONObject();
@@ -173,6 +174,7 @@ public class BlockChainMinerEngine {
         transaction.put("UUID", uuid);
         if (transactionStatus.containsKey(uuid))
             return false;
+        //System.out.println("Doing transfer: " + name + direct);
         if (applyTransaction(transaction)) {
             transientLog.getJSONArray("Transactions").put(transaction);
             if (transientLog.getJSONArray("Transactions").length() % 1 == 0)
@@ -180,11 +182,11 @@ public class BlockChainMinerEngine {
 
             transactionStatus.put(uuid, null);
             if (direct) {
-                System.out.println("Success transfer: " + name);
+                //System.out.println("Success transfer: " + name);
                 Transaction request = Transaction.newBuilder().setFromID(fromID).setToID(toID).setValue(value).setMiningFee(miningFee).setUUID(uuid).build();
                 for (BlockChainMinerBlockingStub stub : stubs)
                     stub.pushTransaction(request);
-                System.out.println("Success transfer again: " + name);
+                //System.out.println("Success transfer again: " + name);
             }
             return true;
         }
@@ -282,7 +284,9 @@ public class BlockChainMinerEngine {
     }
 
     synchronized public void pushTransaction(String fromID, String toID, int value, int miningFee, String uuid) {
+        //System.out.println("Starting pushTransaction: " + name);
         transfer(fromID, toID, value, miningFee, uuid, false);
+        //System.out.println("Finishing pushTransaction: " + name);
     }
 
 
@@ -304,13 +308,13 @@ public class BlockChainMinerEngine {
             nonce += rand.nextInt(10);
             mining.update(nonce);
             if (Hash.checkHash(mining.hash)) {
-                System.out.println("Success: " + name);
+                //System.out.println("Success: " + name);
                 pushBlock(mining.jsonString);
-                System.out.println("Success push: " + name);
+                //System.out.println("Success push: " + name);
                 JsonBlockString request = JsonBlockString.newBuilder().setJson(mining.jsonString).build();
                 for (BlockChainMinerBlockingStub stub : stubs)
                     stub.pushBlock(request);
-                System.out.println("Success push again: " + name);
+                //System.out.println("Success push again: " + name);
                 return true;
             }
         }

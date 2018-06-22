@@ -54,7 +54,7 @@ public class BlockChainMinerServer {
         int numServers = config.getInt("nservers");
         List<BlockChainMinerBlockingStub> stubs = new ArrayList<>();
         for (int num = 1; num <= numServers; num++) 
-            if ("" + num != id) {
+            if (!id.equals("" + num)) {
                 JSONObject server = (JSONObject)config.get("" + num);
                 ManagedChannel channel = NettyChannelBuilder.forAddress(new InetSocketAddress(server.getString("ip"), server.getInt("port")))
                                         .usePlaintext(true)
